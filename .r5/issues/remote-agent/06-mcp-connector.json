@@ -1,0 +1,29 @@
+{
+  "title": "Add an MCP Connector and Pi tools",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Discover/call granted tools on operator-configured remote MCP servers. Use a Connector without adding origin dependencies or a second agent loop to Core.",
+  "acceptance": [
+    {
+      "text": "Use the official Streamable HTTP SDK for tools/list and tools/call",
+      "done": false
+    },
+    {
+      "text": "Enforce both server policy and conversation tool grants",
+      "done": false
+    },
+    {
+      "text": "Support secret-referenced headers, cancellation, deadlines, response limits, and redirect rejection",
+      "done": false
+    },
+    {
+      "text": "Verify authorized DO/Pi calls and denied tool dispatch",
+      "done": false
+    },
+    {
+      "text": "Document configuration and unsupported features such as interactive OAuth",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Resolve dependency advisories in Void and the local runtime",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "npm audit reports 18 advisories: 9 high and 9 moderate. Do not use force fix, which proposes breaking downgrades of Void and other packages. Find compatible fixes and preserve runtime, authentication, browser, and standard verification coverage.",
+  "acceptance": [
+    {
+      "text": "Identify affected advisories and runtime or development exposure",
+      "done": false
+    },
+    {
+      "text": "Choose updates that preserve compatibility",
+      "done": false
+    },
+    {
+      "text": "Pass verify:all and document remaining advisories",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}
