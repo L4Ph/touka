@@ -62,7 +62,7 @@ async function runtime() {
       TEAM_AUTH: JSON.stringify([{ id: "member", token,
         sessions: Array.from({ length: 1100 }, (_, i) => session(i + 1)), resources: [] }]),
     },
-    outboundService: async (request) => {
+    outboundService: async (request: Request) => {
       const url = new URL(request.url);
       if (url.hostname === "api.anthropic.com") {
         const events = [
@@ -93,9 +93,12 @@ test("composed GitHub ingress enforces actor and aggregate quotas before durable
   const worker = await core.getWorker();
   let now = Date.now();
   let delivery = 0;
-  const fetchRoute = (path: string, init: RequestInit = {}) => worker.fetch(`http://localhost${path}`, {
-    ...init, headers: { Authorization: `Bearer ${token}`, "x-test-now": String(now), ...init.headers },
-  });
+  const fetchRoute = (path: string, init: { method?: string; body?: string; headers?: Record<string, string> } = {}) => {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    headers.set("x-test-now", String(now));
+    return worker.fetch(`http://localhost${path}`, { ...init, headers: Object.fromEntries(headers) });
+  };
   const send = async (number: number, actor = "alice", valid = true) => {
     const operation = `delivery-${++delivery}`;
     const body = JSON.stringify({
