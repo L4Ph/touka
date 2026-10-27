@@ -3,12 +3,19 @@ import { AgentDoc, createRegistry, Harness } from '@earendil-works/pi-durable';
 import { sessionModels, modelError } from './models';
 import { PiHarness } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
+import { sessionStream } from './stream';
 import type { Env } from './env';
 import { installTools } from './plugins';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
 import { LIMITS, type ModelSelection, type SubmitInput, type SubmitReceipt, type OperationStatus } from '../../shared/contracts';
 
 export class SessionAgent extends DurableObject<Env> {
+  private readonly connections = new Set<WebSocket>();
+
+  async fetch(request: Request) {
+    return sessionStream(request, this.env, this.ctx, this.harness, this.connections);
+  }
+
   readonly harness = new PiHarness({
     harness: ({ storage, context, onWake }) => {
       const models = sessionModels(this.env);

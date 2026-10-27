@@ -15,7 +15,9 @@ app.get('/health', (c) => c.json({ status: 'ok', service: 'remote-agent' }));
 app.use('/api/*', teamAuth);
 app.use('/api/sessions/:sessionId', sessionAccess);
 app.use('/api/sessions/:sessionId/*', sessionAccess);
-const control = app.get('/api/models', async (c) => c.json({ providers: await modelCatalog(c.env) }))
+const control = app.get('/api/sessions/:sessionId/events', (c) => {
+  return c.env.SESSIONS.getByName(c.req.param('sessionId')).fetch(c.req.raw);
+}).get('/api/models', async (c) => c.json({ providers: await modelCatalog(c.env) }))
 .get('/api/sessions', async (c) => {
   const sessions = await Promise.all(c.get('principal').sessions.map(async (sessionId) => {
     const summary = await c.env.SESSIONS.getByName(sessionId).summary();
