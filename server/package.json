@@ -28,6 +28,7 @@
     "@octokit/rest": "^22.0.1",
     "@octokit/webhooks": "^14.2.0",
     "@remote-agent/adapter-contract": "*",
+    "@remote-agent/adapter-discord": "*",
     "@remote-agent/adapter-slack": "*",
     "@remote-agent/adapter-webhook": "*",
     "agents": "^0.30.1",

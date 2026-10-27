@@ -1,0 +1,4 @@
+{
+  "extends": "../adapter-contract/tsconfig.json",
+  "include": ["src/**/*.ts"]
+}

@@ -107,22 +107,24 @@ Server composes package exports, registration and durable binding. Packages neve
 migration; v1 is retained. Sandbox container provisioning remains explicit using
 `tools/sandbox/README.md`; absent containers fail closed, never run on the host.
 
-| Name                                                                   | Contract                                                                                  |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `TEAM_AUTH`                                                            | Secret JSON members `{token,id,sessions,resources}`; fail closed                          |
-| `MODEL_PROVIDER`, `MODEL_ID`                                           | Explicit pi-ai model selection                                                            |
-| `MODEL_PROVIDERS`                                                      | Server-only `ProviderConfig[]` JSON; endpoints/models/auth secret names; see root README  |
-| SDK provider secret env names                                          | Arbitrary string Worker bindings resolved through pi-ai authContext; no fixed allowlist   |
-| `operator-providers.ts`                                                | Operator-owned typed SDK `Provider[]` registration for custom APIs/auth/metadata          |
-| `CLOUDFLARE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_GATEWAY_ID` | Optional AI Gateway configuration                                                         |
-| `SLACK_SIGNING_SECRET`                                                 | Slack signing secret                                                                      |
-| `SLACK_WORKSPACES`                                                     | Secret JSON workspace/actor/token/resource policy; see `packages/adapter-slack/README.md` |
-| `SLACK_ADMIN_TOKEN`                                                    | Slack delivery status operator secret                                                     |
-| `GITHUB_WEBHOOK_SECRET`                                                | GitHub App webhook secret                                                                 |
-| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`                              | App ID and server-only PEM secret                                                         |
-| `GITHUB_REPOSITORIES`                                                  | Exact JSON `owner/repo` → positive installation ID map shared by tools and adapter        |
-| `GITHUB_ACTORS`, `GITHUB_BOT_LOGIN`                                    | Adapter-owned actor allowlist and self-reply filter configuration                         |
-| `SESSIONS`, `ADAPTER_JOBS`, `SANDBOX`                                  | Private DO namespaces, never expose RPC publicly                                          |
+| Name                                                                   | Contract                                                                                           |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `TEAM_AUTH`                                                            | Secret JSON members `{token,id,sessions,resources}`; fail closed                                   |
+| `MODEL_PROVIDER`, `MODEL_ID`                                           | Explicit pi-ai model selection                                                                     |
+| `MODEL_PROVIDERS`                                                      | Server-only `ProviderConfig[]` JSON; endpoints/models/auth secret names; see root README           |
+| SDK provider secret env names                                          | Arbitrary string Worker bindings resolved through pi-ai authContext; no fixed allowlist            |
+| `operator-providers.ts`                                                | Operator-owned typed SDK `Provider[]` registration for custom APIs/auth/metadata                   |
+| `CLOUDFLARE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_GATEWAY_ID` | Optional AI Gateway configuration                                                                  |
+| `DISCORD_APPLICATION_ID`, `DISCORD_PUBLIC_KEY`                         | HTTP Interactions application ID and Ed25519 public key                                            |
+| `DISCORD_GUILDS`, `DISCORD_ADMIN_TOKEN`                                | Exact guild/actor/resource JSON policy and status secret; see `packages/adapter-discord/README.md` |
+| `SLACK_SIGNING_SECRET`                                                 | Slack signing secret                                                                               |
+| `SLACK_WORKSPACES`                                                     | Secret JSON workspace/actor/token/resource policy; see `packages/adapter-slack/README.md`          |
+| `SLACK_ADMIN_TOKEN`                                                    | Slack delivery status operator secret                                                              |
+| `GITHUB_WEBHOOK_SECRET`                                                | GitHub App webhook secret                                                                          |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`                              | App ID and server-only PEM secret                                                                  |
+| `GITHUB_REPOSITORIES`                                                  | Exact JSON `owner/repo` → positive installation ID map shared by tools and adapter                 |
+| `GITHUB_ACTORS`, `GITHUB_BOT_LOGIN`                                    | Adapter-owned actor allowlist and self-reply filter configuration                                  |
+| `SESSIONS`, `ADAPTER_JOBS`, `SANDBOX`                                  | Private DO namespaces, never expose RPC publicly                                                   |
 
 Shared GitHub installation authentication is **one implementation**:
 `tools/github/auth.ts`, injected through the package contract. `dependencies.github(env)`

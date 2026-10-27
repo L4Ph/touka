@@ -11,6 +11,10 @@ export interface AdapterExecution {
 }
 export interface AdapterEnv {
   TEAM_AUTH?: string;
+  DISCORD_APPLICATION_ID?: string;
+  DISCORD_PUBLIC_KEY?: string;
+  DISCORD_GUILDS?: string;
+  DISCORD_ADMIN_TOKEN?: string;
   SLACK_SIGNING_SECRET?: string;
   SLACK_WORKSPACES?: string;
   SLACK_ADMIN_TOKEN?: string;
