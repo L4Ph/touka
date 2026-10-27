@@ -144,7 +144,8 @@ export const deliver: DeliveryHandler = async ({ job, result, signal, github }) 
   try { token = await github.token(repo, "reply"); }
   catch (error) {
     const status = record(error).status;
-    if (status === 429 || (typeof status === "number" && status >= 500) ||
+    if (status === 429 || (status === 403 && record(error).retryAfter !== undefined) ||
+      (typeof status === "number" && status >= 500) ||
       (error instanceof Error && error.message === "github_transport_failed"))
       return { status: "retry", code: "github_auth_unavailable", retryAfterMs: retryDelay(new Headers({ "retry-after": String(record(error).retryAfter ?? "") })) };
     return { status: "failed", code: "github_auth_failed" };

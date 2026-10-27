@@ -299,6 +299,9 @@ test("GitHub delivery bounds UTF-8 replies and classifies rate limits, vendor er
   transportFailure = true;
   assert.deepEqual(await deliver(context), { status: "retry", code: "github_transport_failed" });
   const sendsBeforeAuthFailure = sends;
+  authError = Object.assign(new Error("github_http_403"), { status: 403, retryAfter: "30" });
+  assert.deepEqual(await deliver(context), { status: "retry", code: "github_auth_unavailable", retryAfterMs: 30000 },
+    "Secondary rate limits during App token acquisition preserve the retry delay, unlike ordinary auth 403s");
   for (const error of [Object.assign(new Error("limited"), { status: 429, retryAfter: "4" }),
     Object.assign(new Error("upstream"), { status: 502 }), new Error("github_transport_failed")]) {
     authError = error;
