@@ -1,25 +1,141 @@
-:root { font-family: system-ui, sans-serif; color: #202629; background: #f5f6f3; line-height: 1.5; color-scheme: light; }
-* { box-sizing: border-box; }
-body { margin: 0; }
-main { max-width: 1400px; margin: auto; padding: 1.5rem; }
-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #bbc3bf; margin-bottom: 1rem; }
-h1 { font-size: 1.8rem; } h2 { font-size: 1.2rem; }
-button, select, textarea { font: inherit; color: inherit; }
-button, select { padding: .55rem .75rem; border: 1px solid #89968e; border-radius: .4rem; background: white; margin: .2rem; min-height: 44px; }
-button { cursor: pointer; } button:disabled { opacity: .6; cursor: default; }
-button:hover:not(:disabled), button[aria-current] { background: #e1eee4; }
-:focus-visible { outline: 3px solid #1557a2; outline-offset: 3px; }
-.workspace { display: grid; grid-template-columns: minmax(220px, 28%) minmax(0, 1fr); gap: 1.5rem; }
-aside { border-inline-end: 1px solid #bbc3bf; padding-inline-end: 1rem; }
-aside ul { list-style: none; padding: 0; } aside button { max-width: 100%; overflow-wrap: anywhere; text-align: start; }
-.conversation { min-width: 0; }
-.session-id { overflow-wrap: anywhere; color: #4a5650; }
-.transcript { list-style: none; padding: 0; }
-.transcript li { background: white; border: 1px solid #ced6ce; border-radius: .5rem; padding: 1rem; margin-block: .75rem; }
-pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
-label { display: block; font-weight: 600; margin-block: .5rem; }
-select { max-width: 100%; }
-textarea { display: block; width: 100%; min-height: 110px; padding: .75rem; border: 1px solid #89968e; border-radius: .4rem; background: white; }
-summary { cursor: pointer; padding-block: .75rem; }
-[role=alert] { border: 2px solid #a62626; padding: 1rem; margin-block: 1rem; }
-@media (max-width: 700px) { main { padding: 1rem; } .workspace { grid-template-columns: minmax(0, 1fr); } aside { border-inline-end: 0; border-bottom: 1px solid #bbc3bf; padding-bottom: 1rem; } }
+:root {
+  font-family: system-ui, sans-serif;
+  color: #202629;
+  background: #f5f6f3;
+  line-height: 1.5;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 1400px;
+  margin: auto;
+  padding: 1.5rem;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #bbc3bf;
+  margin-bottom: 1rem;
+}
+h1 {
+  font-size: 1.8rem;
+}
+h2 {
+  font-size: 1.2rem;
+}
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button,
+select {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #89968e;
+  border-radius: 0.4rem;
+  background: white;
+  margin: 0.2rem;
+  min-height: 44px;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+button:hover:not(:disabled),
+button[aria-current] {
+  background: #e1eee4;
+}
+:focus-visible {
+  outline: 3px solid #1557a2;
+  outline-offset: 3px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 28%) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+aside {
+  border-inline-end: 1px solid #bbc3bf;
+  padding-inline-end: 1rem;
+}
+aside ul {
+  list-style: none;
+  padding: 0;
+}
+aside button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+.conversation {
+  min-width: 0;
+}
+.session-id {
+  overflow-wrap: anywhere;
+  color: #4a5650;
+}
+.transcript {
+  list-style: none;
+  padding: 0;
+}
+.transcript li {
+  background: white;
+  border: 1px solid #ced6ce;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-block: 0.75rem;
+}
+pre {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+label {
+  display: block;
+  font-weight: 600;
+  margin-block: 0.5rem;
+}
+select {
+  max-width: 100%;
+}
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 110px;
+  padding: 0.75rem;
+  border: 1px solid #89968e;
+  border-radius: 0.4rem;
+  background: white;
+}
+summary {
+  cursor: pointer;
+  padding-block: 0.75rem;
+}
+[role="alert"] {
+  border: 2px solid #a62626;
+  padding: 1rem;
+  margin-block: 1rem;
+}
+@media (max-width: 700px) {
+  main {
+    padding: 1rem;
+  }
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  aside {
+    border-inline-end: 0;
+    border-bottom: 1px solid #bbc3bf;
+    padding-bottom: 1rem;
+  }
+}

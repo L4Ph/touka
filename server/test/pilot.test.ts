@@ -164,10 +164,11 @@ test(
         system?: unknown;
         messages: { role: string; content: { text?: string }[] }[];
       };
-      assert.equal(
-        modelRequest.system,
-        undefined,
-        "The core must not inject a system prompt, including an origin label",
+      assert.ok(Array.isArray(modelRequest.system));
+      assert.deepEqual(
+        modelRequest.system.map((block: { text?: string }) => block.text),
+        ["You are Mandarin, a general-purpose assistant. Help the team with their tasks."],
+        "The system prompt contains only the shared identity, not an origin label",
       );
       assert.equal(modelRequest.messages.length, 1, "The core must not inject an origin message");
       assert.equal(modelRequest.messages[0].role, "user");

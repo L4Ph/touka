@@ -370,10 +370,10 @@ test(
           .status,
         409,
       );
-      assert.equal(
-        inputs[0].system,
-        undefined,
-        "No origin or credentials injected into model context",
+      assert.deepEqual(
+        inputs[0].system.map((block: { text?: string }) => block.text),
+        ["You are Mandarin, a general-purpose assistant. Help the team with their tasks."],
+        "Only the shared identity is included, not origin or credentials",
       );
       assert.deepEqual(
         inputs[0].messages[0].content.map((block: { text?: string }) => block.text),

@@ -287,9 +287,10 @@ test(
         eventId: "Ev1",
         accepted: true,
       });
+      const acceptedJob = await status("Ev1");
       assert(
-        ["queued", "waiting"].includes((await status("Ev1")).state),
-        "ACK follows durable inbox write, not model completion",
+        ["queued", "waiting"].includes(acceptedJob.state),
+        `ACK follows durable inbox write, not model completion: ${JSON.stringify(acceptedJob)}`,
       );
       await until(
         async () => modelInputs.length,
@@ -299,7 +300,11 @@ test(
       const duplicates = await Promise.all([send(payload("Ev1")), send(payload("Ev1"))]);
       for (const response of duplicates)
         assert.deepEqual(await response.json(), { eventId: "Ev1", accepted: false });
-      assert.equal(modelInputs[0].system, undefined);
+      assert.deepEqual(
+        modelInputs[0].system.map((block: { text?: string }) => block.text),
+        ["You are Mandarin, a general-purpose assistant. Help the team with their tasks."],
+        "Only the shared identity is included, not origin or credentials",
+      );
       assert.deepEqual(
         modelInputs[0].messages[0].content.map((block: { text?: string }) => block.text),
         ["Hello"],

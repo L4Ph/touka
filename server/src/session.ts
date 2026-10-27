@@ -66,6 +66,18 @@ export class SessionAgent extends DurableObject<Env> {
       this.execution ??= await this.ctx.storage.get("execution");
       const models = sessionModels(this.env);
       const registry = createRegistry();
+      // PiHarness must create the root with its model defaults; identity belongs in the registry.
+      registry.install({
+        name: "mandarin",
+        sections: [
+          {
+            key: "identity",
+            tag: false,
+            render: () =>
+              "You are Mandarin, a general-purpose assistant. Help the team with their tasks.",
+          },
+        ],
+      });
       const execution = () => this.execution;
       installTools(registry, {
         env: this.env,
@@ -76,7 +88,7 @@ export class SessionAgent extends DurableObject<Env> {
           return execution()?.principal ?? { id: "unbound", sessions: [], resources: [] };
         },
       });
-      const pi = await Harness.open(
+      return Harness.open(
         storage,
         {
           models,
@@ -89,10 +101,6 @@ export class SessionAgent extends DurableObject<Env> {
         },
         context,
       );
-      await pi.root(context, {
-        agent: { instructions: "You are Mandarin, a general-purpose assistant. Help the team with their tasks." },
-      });
-      return pi;
     },
     defaults:
       this.env.MODEL_PROVIDER && this.env.MODEL_ID
