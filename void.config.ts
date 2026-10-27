@@ -2,6 +2,10 @@
 import { defineConfig } from "void/config";
 
 export default defineConfig({
+  auth: { providers: ["github"] },
+  cloudflare: {
+    services: [{ binding: "AGENT_CORE", service: "remote-agent-server", entrypoint: "WebGateway" }],
+  },
   worker: {
     compatibility_date: "2026-10-01",
   },

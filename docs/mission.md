@@ -45,6 +45,12 @@ Do not restrict models to Anthropic/OpenAI/Gateway. Register pi-ai built-ins, se
 
 `verify:models` exercises real Groq/custom request serialization with only external HTTP faked, arbitrary auth, negative configuration, catalog redaction, and real workerd/SQLite selection persistence/client rejection. It does not prove every SDK transport works on workerd or live connectivity. See README for file/ambient auth, OAuth, and transport limits. Preserve Vite+ 1.4.0 and unfinished adapter/delivery work. Final gate: `npm run verify:models && npm run verify && npx vp check`.
 
+## Additional unit: shared-web-chat-auth
+
+Implement Better Auth and shared discovery before the Web UI. Connect independent root Void SSR/core Workers through AGENT_CORE and the named WebGateway. Supply auth/D1 migrations, cookie proxy `/api/agent/*`, typed client, revocable WebSockets, and a shared durable directory while leaving the starter UI for web-client. Team members share one DO and its controls; tool grants remain server-owned.
+
+Run `npm run verify:auth && npm run verify && npx vp check`. Use real local Better Auth callbacks, D1, workerd, SQLite, HTTP, and WebSockets to cover two-user history, anonymous/origin/membership rejection, disabled signup, forged headers, unchanged grants, machine backfill, new adapter discovery, restart, logout, and revocation. Fake only OAuth/Slack/model boundaries. Seed older unindexed IDs explicitly because DO enumeration is impossible. See [shared web auth](shared-web-auth.md) for setup, five-second idle revocation, and limits.
+
 ## Security and data
 
 - Reject unknown workspaces/repos/actors, anonymous HTTP/WS, invalid signatures, and oversized payloads before execution.

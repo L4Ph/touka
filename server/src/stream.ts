@@ -12,11 +12,16 @@ export function sessionStream(
   harness: PiHarness,
   connections: Set<WebSocket>,
   exists: () => Promise<boolean>,
+  trustedSessionId?: string,
 ) {
   const app = new Hono<AppEnv>();
-  app.use("*", teamAuth);
-  app.use("/api/sessions/:sessionId/events", sessionAccess);
+  if (!trustedSessionId) {
+    app.use("*", teamAuth);
+    app.use("/api/sessions/:sessionId/events", sessionAccess);
+  }
   app.get("/api/sessions/:sessionId/events", async (c) => {
+    if (trustedSessionId && trustedSessionId !== c.req.param("sessionId"))
+      return c.json({ error: { code: "forbidden" } }, 403);
     if (!ctx.id.equals(env.SESSIONS.idFromName(c.req.param("sessionId"))))
       return c.json({ error: { code: "forbidden" } }, 403);
     if (new URL(request.url).search) return c.json({ error: { code: "query_not_allowed" } }, 400);

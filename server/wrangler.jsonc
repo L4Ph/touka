@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [
+      { "name": "SESSION_DIRECTORY", "class_name": "SessionDirectory" },
       { "name": "SESSIONS", "class_name": "SessionAgent" },
       { "name": "ADAPTER_JOBS", "class_name": "AdapterJobs" },
       { "name": "SANDBOX", "class_name": "SandboxSession" },
@@ -14,6 +15,7 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["SessionAgent"] },
     { "tag": "v2-adapter-delivery", "new_sqlite_classes": ["AdapterJobs", "SandboxSession"] },
+    { "tag": "v3-shared-directory", "new_sqlite_classes": ["SessionDirectory"] },
   ],
   // Container provisioning is explicit: see src/tools/sandbox/README.md. No host-shell fallback.
   // Secrets/allowlists: see src/README.md; never put credentials in vars.

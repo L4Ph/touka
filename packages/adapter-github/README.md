@@ -117,6 +117,7 @@ node --import tsx --test ../packages/adapter-github/src/ingress-rate.test.ts
 ```
 
 Protocol references:
+
 - https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 - https://docs.github.com/en/rest/pulls/comments#create-a-review-comment-for-a-pull-request
 - Shared lifecycle details: `../../server/src/README.md`.

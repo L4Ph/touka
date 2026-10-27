@@ -1,9 +1,14 @@
+import type { SessionDirectory } from "./directory";
 import type { SessionAgent } from "./session";
 import type { AdapterEnv, Principal } from "@remote-agent/adapter-contract";
 import type { AdapterJobs } from "./jobs";
 import type { SandboxSession } from "./tools/sandbox/worker";
 import type { GitHubEnv } from "./tools/github/auth";
 export interface Env extends GitHubEnv, AdapterEnv {
+  SESSION_DIRECTORY?: DurableObjectNamespace<SessionDirectory>;
+  // Explicit one-time seeds for pre-index adapter IDs (DOs cannot be enumerated).
+  SESSION_INDEX_SEEDS?: string;
+  WEB_RESOURCES?: string;
   ADAPTER_JOBS?: DurableObjectNamespace<AdapterJobs>;
   SANDBOX?: DurableObjectNamespace<SandboxSession>;
   SESSIONS: DurableObjectNamespace<SessionAgent>;
@@ -14,4 +19,4 @@ export interface Env extends GitHubEnv, AdapterEnv {
   // Server-only JSON ProviderConfig[]. SDK auth resolves arbitrary string bindings.
   MODEL_PROVIDERS?: string;
 }
-export type AppEnv = { Bindings: Env; Variables: { principal: Principal } };
+export type AppEnv = { Bindings: Env; Variables: { principal: Principal; teamViewer: boolean } };

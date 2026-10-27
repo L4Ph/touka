@@ -6,11 +6,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
-  "devDependencies": {
-    "miniflare": "4.20260730.0"
-  },
   "dependencies": {
     "@remote-agent/adapter-contract": "*",
     "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260730.0"
   }
 }

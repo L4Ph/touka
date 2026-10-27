@@ -15,9 +15,17 @@ Preserve Void's default Vite+ toolchain. After the official 1.4.0 migration, 37 
 
 `verify` runs server type checks, Oxlint, the Worker build, contract tests, real workerd/SQLite/HTTP smoke tests, and the Void SSR build within 120 seconds. Build the server before `npm test`. Root dev/build scripts target the UI; `npm run dev -w server` or `cd server && cf dev` targets the independent Worker. No deployment has been performed.
 
+## Better Auth / shared team chats
+
+`verify:auth` uses real Void Better Auth/D1/core DO/HTTP/WS. The independent root Worker supplies auth, the cookie-protected `/api/agent/*` proxy, and typed web-client contract. The starter UI remains unchanged for the web-client unit.
+
+Configure exact verified emails in the comma-separated `TEAM_EMAILS`, `BETTER_AUTH_SECRET`, and OAuth provider credentials on the Web Worker. GitHub is the default in `void.config.ts`, separate from the bot App. Password signup is disabled; missing configuration denies access. `AGENT_CORE` targets the core's named `WebGateway` entry point. All members can view, continue, stop, and change models on the same Session DO without expanding existing tool grants.
+
+**Existing data:** Machine allowlist IDs are backfilled automatically. Supply older adapter thread IDs absent from those lists through `SESSION_INDEX_SEEDS`; DOs cannot be enumerated. New Web and adapter sessions register idempotently in the durable directory. Auth SQL is in `db/migrations/`. See [shared web authentication](docs/shared-web-auth.md) for cookies, CSRF, revocation, pagination, configuration, and limitations. Live OAuth/LLM connectivity and deployment are unverified.
+
 ## Local Launch / Doctor / Drive / Cleanup
 
-Configure server secrets from env.example. TEAM_AUTH contains member IDs, random tokens of at least 32 characters, allowed sessions, and resources. Missing/invalid configuration returns 503, invalid tokens 401, and denied sessions 403. Never embed shared server tokens in browsers; authenticated Web credential handling belongs to web-client.
+Read `env.example` and configure secrets on the server. `TEAM_AUTH` is a JSON array of member IDs, random tokens of at least 32 characters, session IDs, and resource grants. Missing or invalid configuration returns 503; invalid bearer tokens return 401; unauthorized sessions return 403. Never embed machine tokens in the browser. Browser users authenticate separately with Better Auth cookies.
 
 ```sh
 npm run build:server
@@ -71,7 +79,7 @@ Limits: operation expiry and history deletion are not implemented. Do not reuse 
 npm run verify:sessions && npm run typecheck
 ```
 
-All APIs require TEAM_AUTH bearer auth. Preconfigure session IDs in each principal's allowlist; no dynamic grants. List only existing authorized sessions.
+Public core `/api/*` requires a TEAM_AUTH bearer token; browsers use the Better Auth proxy described above. Add machine session IDs to the principal's allowlist in advance; access is not granted dynamically. The machine directory lists only existing sessions authorized for that principal.
 
 | Method / path                    | Body / result                                                                       |
 | -------------------------------- | ----------------------------------------------------------------------------------- |

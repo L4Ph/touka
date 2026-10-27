@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vp -C . dev",
     "test": "npm test --workspace server",
+    "verify:auth": "npm run build && npm run build:server && cd server && node --import tsx --test auth-test/auth.test.ts",
     "verify:models": "npm run verify:models --workspace server",
     "verify:delivery": "npm run verify:delivery --workspace server",
     "verify:pilot": "npm run verify:pilot --workspace server",

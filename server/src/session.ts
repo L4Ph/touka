@@ -22,9 +22,43 @@ export class SessionAgent extends DurableObject<Env> {
   private execution?: { sessionId: string; principal: Principal };
 
   async fetch(request: Request) {
+    const url = new URL(request.url);
+    const internal = /^\/internal\/web\/([a-zA-Z0-9_-]+)$/.exec(url.pathname);
+    if (internal) {
+      url.pathname = `/api/sessions/${internal[1]}/events`;
+      return sessionStream(
+        new Request(url, request),
+        this.env,
+        this.ctx,
+        this.harness,
+        this.connections,
+        () => this.exists(),
+        internal[1],
+      );
+    }
     return sessionStream(request, this.env, this.ctx, this.harness, this.connections, () =>
       this.exists(),
     );
+  }
+
+  async submitShared(input: SubmitInput) {
+    this.execution ??= await this.ctx.storage.get("execution");
+    const resources: unknown = JSON.parse(this.env.WEB_RESOURCES ?? "[]");
+    if (!Array.isArray(resources) || !resources.every((value) => typeof value === "string"))
+      throw new Error("execution_forbidden");
+    // Shared visibility never replaces or widens the durable server-granted tool authority.
+    return this.submit(
+      input,
+      this.execution?.principal ?? {
+        id: "team-web",
+        sessions: [input.sessionId],
+        resources,
+      },
+    );
+  }
+
+  private async register(sessionId: string) {
+    await this.env.SESSION_DIRECTORY?.getByName("team").register(sessionId);
   }
 
   readonly harness = new PiHarness({
@@ -78,6 +112,7 @@ export class SessionAgent extends DurableObject<Env> {
         await this.ctx.storage.put("execution", grant);
         this.execution = grant;
       }
+      await this.register(sessionId);
       const storage = await this.harness.storage();
       const conversation = await this.harness.conversation("1");
       const existing = await storage.submissionByRequest(
@@ -130,7 +165,7 @@ export class SessionAgent extends DurableObject<Env> {
     return true;
   }
 
-  async create(model?: ModelSelection) {
+  async create(model?: ModelSelection, sessionId?: string) {
     return this.ctx.blockConcurrencyWhile(async () => {
       if (await this.exists()) return { error: "session_exists" };
       const selection =
@@ -141,6 +176,7 @@ export class SessionAgent extends DurableObject<Env> {
       if (!selection) return { error: "model_unconfigured" };
       const error = await modelError(this.env, selection);
       if (error) return { error };
+      if (sessionId) await this.register(sessionId);
       await this.harness.session().setModel(selection);
       await this.ctx.storage.put("created", true);
       return { error: null };
