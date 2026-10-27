@@ -1,0 +1,33 @@
+{
+  "title": "Initial general-purpose remote agent release",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Separate the Pi Durable/pi-ai/Cloudflare Agents SDK core from Slack/GitHub/Webhook adapters, and expose a shared API and Void Web UI. Specifications are in docs/mission.md and CONTEXT.md.",
+  "acceptance": [
+    {
+      "text": "Build the independent agent server and Void React Pages UI",
+      "done": false
+    },
+    {
+      "text": "Keep Slack/GitHub dependencies and mandatory origin labels out of the core",
+      "done": false
+    },
+    {
+      "text": "Accept Slack/GitHub mentions and authenticated Webhooks durably",
+      "done": false
+    },
+    {
+      "text": "Control conversations, status, stop, and model selection from the Web UI",
+      "done": false
+    },
+    {
+      "text": "Use authorized GitHub App and isolated tools, stopping coding work at pull requests",
+      "done": false
+    },
+    {
+      "text": "Document automated verification and unverified live-service behavior",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

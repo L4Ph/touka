@@ -1,0 +1,17 @@
+{
+  "title": "Support deployment operations in a future release",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "The initial release stops at pull request creation. Design deployment permissions, approval, and recovery separately. Cloudflare OS compatibility is not required.",
+  "acceptance": [
+    {
+      "text": "Agree on deployment targets and authorization boundaries",
+      "done": false
+    },
+    {
+      "text": "Verify approval and failure recovery against real services",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

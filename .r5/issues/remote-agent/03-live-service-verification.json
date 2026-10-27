@@ -1,0 +1,21 @@
+{
+  "title": "Verify Slack, GitHub, and model connectivity with production credentials",
+  "category": "enhancement",
+  "state": "ready-for-human",
+  "what": "Use owner-provided GitHub App, Slack App, and model credentials to verify real event receipt, replies, and recovery. Never commit secret values.",
+  "acceptance": [
+    {
+      "text": "Configure allowed GitHub repositories and users",
+      "done": false
+    },
+    {
+      "text": "Verify Slack signatures, mention receipt, and replies",
+      "done": false
+    },
+    {
+      "text": "Verify real model and sandbox connectivity",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}
