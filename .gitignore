@@ -8,3 +8,7 @@ dist
 !.env.example
 *.tsbuildinfo
 .DS_Store
+.dev.vars
+.dev.vars.*
+.runtime
+.runtime.pid

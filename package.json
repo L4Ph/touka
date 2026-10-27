@@ -10,9 +10,15 @@
   },
   "name": "r5-remote-agent",
   "private": true,
+  "workspaces": ["server"],
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "npm test --workspace server",
+    "typecheck": "npm run typecheck --workspace server",
+    "lint": "npm run lint --workspace server",
+    "build:server": "npm run build --workspace server",
+    "verify": "npm run verify --workspace server && npm run build",
     "build": "vite build",
     "preview": "vite preview",
     "postinstall": "void prepare"

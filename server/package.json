@@ -1,0 +1,39 @@
+{
+  "name": "@remote-agent/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "cd .. && oxlint server/src server/test shared",
+    "test": "node scripts/test.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run build && npm test",
+    "launch": "node scripts/runtime.mjs launch",
+    "doctor": "node scripts/runtime.mjs doctor",
+    "drive": "node scripts/runtime.mjs drive",
+    "cleanup": "node scripts/runtime.mjs cleanup"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.65.0",
+    "@cloudflare/workers-types": "^5.20261027.1",
+    "@types/node": "^26.6.5",
+    "miniflare": "^4.20260730.0",
+    "oxlint": "^1.89.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@cloudflare/sandbox": "^1.0.3",
+    "@earendil-works/chord": "~1.4.0",
+    "@earendil-works/pi-ai": "~1.4.0",
+    "@earendil-works/pi-durable": "~1.4.0",
+    "@octokit/app": "^16.1.4",
+    "@octokit/rest": "^22.0.1",
+    "@octokit/webhooks": "^14.2.0",
+    "@slack/web-api": "^8.2.0",
+    "agents": "^0.30.1",
+    "hono": "^4.13.14"
+  }
+}
