@@ -13,7 +13,7 @@ export class SessionAgent extends DurableObject<Env> {
   private readonly connections = new Set<WebSocket>();
 
   async fetch(request: Request) {
-    return sessionStream(request, this.env, this.ctx, this.harness, this.connections);
+    return sessionStream(request, this.env, this.ctx, this.harness, this.connections, () => this.exists());
   }
 
   readonly harness = new PiHarness({
@@ -56,9 +56,20 @@ export class SessionAgent extends DurableObject<Env> {
       ...result.reason !== undefined ? { reason: result.reason } : {} };
   }
 
+  private async exists() {
+    if (await this.ctx.storage.get('created')) return true;
+    // Pi opens a root even for read-only probes; only durable submissions establish an M0 session.
+    const storage = await this.harness.storage();
+    const conversation = await this.harness.conversation('1');
+    const submissions = await storage.scanSubmissions({ conversationId: conversation.id }, 1, undefined, BACKGROUND_CONTEXT);
+    if (!submissions.items.length) return false;
+    await this.ctx.storage.put('created', true);
+    return true;
+  }
+
   async create(model?: ModelSelection) {
     return this.ctx.blockConcurrencyWhile(async () => {
-      if (await this.ctx.storage.get('created')) return { error: 'session_exists' };
+      if (await this.exists()) return { error: 'session_exists' };
       const selection = model ?? (this.env.MODEL_PROVIDER && this.env.MODEL_ID
         ? { provider: this.env.MODEL_PROVIDER, id: this.env.MODEL_ID } : undefined);
       if (!selection) return { error: 'model_unconfigured' };
@@ -71,7 +82,7 @@ export class SessionAgent extends DurableObject<Env> {
   }
 
   async summary() {
-    if (!await this.ctx.storage.get('created')) return null;
+    if (!await this.exists()) return null;
     const pi = await this.harness.pi();
     const conversation = await this.harness.conversation('1');
     const agent = await pi.snapshot(AgentDoc, conversation.id, BACKGROUND_CONTEXT);

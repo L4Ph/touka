@@ -4,7 +4,7 @@ import { teamAuth, sessionAccess } from './auth';
 import type { AppEnv, Env } from './env';
 import { STREAM_LIMITS, type SessionStreamFrame } from '../../shared/stream';
 
-export function sessionStream(request: Request, env: Env, ctx: DurableObjectState, harness: PiHarness, connections: Set<WebSocket>) {
+export function sessionStream(request: Request, env: Env, ctx: DurableObjectState, harness: PiHarness, connections: Set<WebSocket>, exists: () => Promise<boolean>) {
   const app = new Hono<AppEnv>();
   app.use('*', teamAuth);
   app.use('/api/sessions/:sessionId/events', sessionAccess);
@@ -12,7 +12,7 @@ export function sessionStream(request: Request, env: Env, ctx: DurableObjectStat
     if (!ctx.id.equals(env.SESSIONS.idFromName(c.req.param('sessionId')))) return c.json({ error: { code: 'forbidden' } }, 403);
     if (new URL(request.url).search) return c.json({ error: { code: 'query_not_allowed' } }, 400);
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return c.json({ error: { code: 'upgrade_required' } }, 426);
-    if (!await ctx.storage.get('created')) return c.json({ error: { code: 'session_not_found' } }, 404);
+    if (!await exists()) return c.json({ error: { code: 'session_not_found' } }, 404);
     if (connections.size >= STREAM_LIMITS.connections) return c.json({ error: { code: 'connection_limit' } }, 429);
     const [client, socket] = Object.values(new WebSocketPair());
     connections.add(socket);
