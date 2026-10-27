@@ -139,7 +139,140 @@ test("native Groq and operator endpoint serialize through real pi-ai without Gat
     );
 });
 
-test("SDK Provider registration can add a keyless custom provider without changing the core", async () => {
+test("configured keyless providers complete through every JSON-supported pi-ai API without credentials", async () => {
+  for (const api of ["openai-completions", "openai-responses", "anthropic-messages"] as const) {
+    const baseUrl =
+      api === "anthropic-messages" ? "https://inference.example.test" : localProvider.baseUrl;
+    const env = serverEnv({
+      MODEL_PROVIDERS: JSON.stringify([
+        { ...localProvider, api, baseUrl, auth: { keyless: true } },
+      ]),
+      OPENAI_API_KEY: "must-not-be-used",
+      ANTHROPIC_API_KEY: "must-not-be-used",
+      TEAM_INFERENCE_SECRET: "must-not-be-used",
+    });
+    assert.equal(await modelError(env, selection), null);
+    const models = sessionModels(env);
+    const model = models.getModel(selection.provider, selection.id);
+    assert(model);
+    let requests = 0;
+    const result = await models.complete(
+      model,
+      { messages: [{ role: "user", content: "Hello", timestamp: 1 }] },
+      {
+        fetch: async (input, init) => {
+          requests++;
+          const request = new Request(input, init);
+          const anthropic = api === "anthropic-messages";
+          assert.equal(
+            request.url,
+            `${baseUrl}/${anthropic ? "v1/messages?beta=true" : api === "openai-responses" ? "responses" : "chat/completions"}`,
+          );
+          assert.equal(
+            request.headers.get(anthropic ? "x-api-key" : "authorization"),
+            anthropic ? "keyless" : "Bearer keyless",
+          );
+          assert.equal(request.headers.get(anthropic ? "authorization" : "x-api-key"), null);
+          const body = (await request.json()) as { model: string; stream: boolean };
+          assert.equal(body.model, "team-chat");
+          assert.equal(body.stream, true);
+          if (api === "openai-completions") return sse();
+          const events = anthropic
+            ? [
+                {
+                  type: "message_start",
+                  message: {
+                    id: "reply",
+                    type: "message",
+                    role: "assistant",
+                    content: [],
+                    model: "team-chat",
+                    usage: { input_tokens: 3, output_tokens: 0 },
+                  },
+                },
+                {
+                  type: "content_block_start",
+                  index: 0,
+                  content_block: { type: "text", text: "" },
+                },
+                {
+                  type: "content_block_delta",
+                  index: 0,
+                  delta: { type: "text_delta", text: "Boundary answer" },
+                },
+                { type: "content_block_stop", index: 0 },
+                {
+                  type: "message_delta",
+                  delta: { stop_reason: "end_turn" },
+                  usage: { output_tokens: 2 },
+                },
+                { type: "message_stop" },
+              ]
+            : [
+                {
+                  type: "response.output_item.added",
+                  output_index: 0,
+                  item: {
+                    id: "msg",
+                    type: "message",
+                    role: "assistant",
+                    content: [],
+                    status: "in_progress",
+                  },
+                },
+                {
+                  type: "response.content_part.added",
+                  output_index: 0,
+                  content_index: 0,
+                  part: { type: "output_text", text: "", annotations: [] },
+                },
+                {
+                  type: "response.output_text.delta",
+                  output_index: 0,
+                  content_index: 0,
+                  delta: "Boundary answer",
+                },
+                {
+                  type: "response.output_item.done",
+                  output_index: 0,
+                  item: {
+                    id: "msg",
+                    type: "message",
+                    role: "assistant",
+                    status: "completed",
+                    content: [{ type: "output_text", text: "Boundary answer", annotations: [] }],
+                  },
+                },
+                {
+                  type: "response.completed",
+                  response: {
+                    id: "reply",
+                    status: "completed",
+                    usage: { input_tokens: 3, output_tokens: 2, total_tokens: 5 },
+                  },
+                },
+              ];
+          return new Response(
+            events
+              .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+              .join(""),
+            {
+              headers: { "Content-Type": "text/event-stream" },
+            },
+          );
+        },
+      },
+    );
+    assert.equal(result.stopReason, "stop", `${api}: ${result.errorMessage}`);
+    assert.deepEqual(
+      result.content.map((part) => (part.type === "text" ? part.text : part.type)),
+      ["Boundary answer"],
+    );
+    assert.equal(requests, 1, `${api} must reach its configured HTTP endpoint exactly once`);
+  }
+});
+
+test("SDK Provider registration preserves operator-supplied custom auth", async () => {
   const provider = createProvider({
     id: "sdk-custom",
     auth: { apiKey: { name: "Local", resolve: async () => ({ auth: {} }) } },

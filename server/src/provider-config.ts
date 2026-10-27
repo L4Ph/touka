@@ -143,7 +143,10 @@ export function configuredProviders(raw: string | undefined): Provider[] {
       auth:
         "env" in typed.auth
           ? { apiKey: envApiKeyAuth(typed.id, [typed.auth.env]) }
-          : { apiKey: { name: typed.id, resolve: async () => ({ auth: {} }) } },
+          : {
+              // Transports require nonempty auth; a fixed non-secret key also blocks ambient credentials.
+              apiKey: { name: typed.id, resolve: async () => ({ auth: { apiKey: "keyless" } }) },
+            },
       models: typed.models.map((model) => ({
         ...model,
         provider: typed.id,
