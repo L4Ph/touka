@@ -2,16 +2,17 @@
 
 ## Completion criteria
 
-Implement the ten units below and pass scoped tests, types, builds, and local HTTP/WS verification. Use real credentials only when available; never report unverified services as success. Without a Git remote, committed local tickets are the issue tracker.
+Implement the initial ten units and shared delivery spine, then pass scoped tests, type checks, builds, and local HTTP/WS verification. Use real credentials only when available and never label unverified service behavior as success. Without a Git remote, committed local tickets are the issue tracker.
 
 ## Milestones
 
 | Unit | Milestone | Deliverables and acceptance |
-|---|---|---|
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | spine | M0 | Independent server Worker, shared types, Pi dependencies, fail-closed auth, and test/type/build/runtime scripts; preserve the Void starter |
 | webhook-pilot | M0 | Authenticated durable submission, dedupe, and status; first real-HTTP vertical slice with negative cases |
 | session-control | M1 | Session creation/list/history/status/stop/model controls; persistence, recovery, and visible parked/unanswered states |
 | event-stream | M1 | Authenticated session-scoped DO WebSockets: snapshots, events, reconnect, unsubscribe, and limits |
+| adapter-delivery-spine | M2 shared prerequisite | Workspace contracts/discovery, authenticated execution, SQLite reply outbox/alarms, persisted tool grants, bindings, historical fixtures, and runtime proof |
 | slack-adapter | M2 | Signature/time/policy checks, mention-to-thread mapping, bot filtering, durable ACK, replies, and retries |
 | github-adapter | M2 | App webhook signature/repository/actor/mention checks, Issue/PR mapping, self-reply filtering, delivery, and retry dedupe |
 | github-tools | M2 | Scoped short-lived App tokens for file reads, branches/files, and PR creation; no merge/deploy; honest replay policy |
@@ -20,6 +21,28 @@ Implement the ten units below and pass scoped tests, types, builds, and local HT
 | integration-proof | M4 | Wiring, setup, Launch/Doctor/Drive/Evidence/Cleanup, security negatives, full verification, and operations documentation |
 
 Implement M0 sequentially and use the Webhook pilot as the exemplar. Parallelize only disjoint owned files; shared contracts and integration remain sequential.
+
+## M2 shared-spine corrections and resume prerequisites
+
+`create() -> Hono` alone cannot register durable reply jobs. Fix the shared spine rather than asking for a product decision. `server/src/README.md` defines the M2 contracts and exemplar.
+
+- Put inbound adapters in independent `packages/adapter-{webhook,slack,github}` workspaces. Import only shared `adapter-contract`, not server internals. The server discovers exports and supplies typed dependencies and durable bindings. Delete old `server/src/adapters` and duplicate proxy/job implementations.
+- Shared `AdapterDependencies.execute` and SQLite/alarm `AdapterJobs` own acceptance and the reply outbox. Discover package `deliver` exports without central edits. Keep reply/origin metadata only in the outbox, never Pi input.
+- Persist the authenticated principal/session/resource grant and pass logical session IDs to real tools. Reject implicit authority changes with 403 and use a new session. Never attach authority retroactively to unbound/unauthenticated input.
+- **Slack resume:** Existing code/tests moved to `packages/adapter-slack` and shared execution/delivery under server policy grants. Use `slack-cloudflare-workers` verification and awaited `beforeAuthorize` for durable ACK, not automatic event ACK or lazy waitUntil. Remove the private job Worker/binding and finish vendor rate/size/protocol policy.
+- **GitHub resume:** `packages/adapter-github` is an unimplemented skeleton. Add exports, types, tests, create/dependencies, and delivery. It owns signatures, actors/repos/mentions, and thread mapping. Inject shared App auth through contracts; reply with `github.token(repo, 'reply')`. Never duplicate JWT/token logic. Retry 429/5xx and expose permanent failures.
+- **GitHub Tools resume:** Shared work fixed unbound grants and historical fixtures. Replace unsupported Workers `redirect:error` with manual/non-2xx rejection and test real registered tools on workerd. Preserve authorization and side-effect policy.
+- **Sandbox resume:** Shared work supplies SANDBOX binding/export/migration/Env. Follow the module README for real image provisioning; do not claim unverified Docker/production Containers work.
+- **All M2 workers:** Derive historical glob membership from M0's `git ls-tree`, not current directories. Retain the real old-to-current SQLite/history/model/WS upgrade regression in scoped verification.
+- **Integration prerequisites:** Enforce vendor payload/output and ingress-rate limits plus authenticated status. Document at-least-once crash duplicates, 6 attempts/24 hours, one-hour maximum 429 delay, 100 retained jobs/session, and snapshot-grant revocation limits. Real service connectivity/deployment needs credentials and permission.
+
+Shared verification: `npm run verify:delivery && npm run verify`. Record real local HTTP/SQLite/alarms with external fakes, not live LLM/vendor evidence.
+
+## Operator provider correction
+
+Do not restrict models to Anthropic/OpenAI/Gateway. Register pi-ai built-ins, server-only MODEL_PROVIDERS JSON, and the typed Provider array in operator-providers.ts. JSON handles common APIs/endpoints/metadata/arbitrary secret names or explicit keyless auth; native createProvider handles other SDK capabilities. Authenticated clients select registered models only; operators own endpoints/credentials. Defaults are MODEL_PROVIDER/MODEL_ID; selections persist in Pi SQLite. No mandatory Gateway, implicit reroute, or fallback.
+
+`verify:models` exercises real Groq/custom request serialization with only external HTTP faked, arbitrary auth, negative configuration, catalog redaction, and real workerd/SQLite selection persistence/client rejection. It does not prove every SDK transport works on workerd or live connectivity. See README for file/ambient auth, OAuth, and transport limits. Preserve Vite+ 1.4.0 and unfinished adapter/delivery work. Final gate: `npm run verify:models && npm run verify && npx vp check`.
 
 ## Security and data
 
@@ -36,7 +59,7 @@ Provide keyboard access, labels, and accessible status announcements. Distinguis
 
 ## Out of scope
 
-Cloudflare OS/Gadgets, public SaaS, deployments, PR merge, dynamic credentials for every provider, unsupported Pi conversation deletion, and cursor replay are out of scope. Track future requirements separately.
+Cloudflare OS/Gadgets, public multi-tenant SaaS, deployment, PR merge, browser/chat credential or arbitrary endpoint registration, unsupported Pi conversation deletion, and cursor event replay. Track future work separately.
 
 ## Verification limits
 

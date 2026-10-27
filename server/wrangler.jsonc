@@ -4,7 +4,19 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
-  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionAgent" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionAgent"] }],
-  "observability": { "enabled": false }
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSIONS", "class_name": "SessionAgent" },
+      { "name": "ADAPTER_JOBS", "class_name": "AdapterJobs" },
+      { "name": "SANDBOX", "class_name": "SandboxSession" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SessionAgent"] },
+    { "tag": "v2-adapter-delivery", "new_sqlite_classes": ["AdapterJobs", "SandboxSession"] },
+  ],
+  // Container provisioning is explicit: see src/tools/sandbox/README.md. No host-shell fallback.
+  // Secrets/allowlists: see src/README.md; never put credentials in vars.
+
+  "observability": { "enabled": false },
 }

@@ -1,0 +1,9 @@
+{
+  "name": "@remote-agent/adapter-github",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@remote-agent/adapter-contract": "*",
+    "hono": "^4.13.14"
+  }
+}

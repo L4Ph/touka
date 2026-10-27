@@ -30,12 +30,12 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 
 ## Shared seams / ownership
 
-- `shared/contracts.ts`: session/operation/input only, with no source union or origin prompt. Requests: 32 KiB; input: 16k characters; IDs: 128 characters; pending: 16 including running work; tools: 32.
-- `server/src/session.ts`: real PiHarness/Lifecycle/onWake/SQLite and Pi ~1.4.0 with explicit provider/model and no fallback. State inspection without a model does not prove execution. Auth supports server OpenAI/Anthropic/Cloudflare Gateway configuration only; never replace missing config with another provider.
-- `server/src/adapters/<name>/index.ts`: create() returns Hono<AppEnv> and mounts at /adapters/<name>. Each adapter owns signatures, policy, bodies, dedupe, and replies. These are not bearer routes; each must authenticate fail-closed.
+- `packages/adapter-contract/src/core.ts`: transport-neutral `sessionId / operationId / input`, with no source union or origin prompt. Requests are capped at 32 KiB, input at 16k characters, IDs at 128 characters, pending operations at 16, and registered tools at 32. Webhook pending limits include running work.
+- `server/src/session.ts`: real PiHarness, Lifecycle, `onWake`, SQLite, and Pi `~1.4.0`. Provider/model selection is explicit with no fallback. State inspection works without a model but does not imply successful execution. Models come from pi-ai and operator registrations; SDK authContext resolves arbitrary server secret bindings. Missing configuration is never replaced by another provider.
+- `packages/adapter-<name>/src/index.ts`: independent npm packages export `create(dependencies): Hono<AdapterAppEnv>` using typed `adapter-contract` capabilities, not server/core internals. They mount at `/adapters/<name>` and export `deliver(context)` for the shared SQLite outbox/alarm. Each authenticates fail-closed, owns signatures, policies, body/thread/reply formats, and calls `dependencies.execute` only after authentication. See [`server/src/README.md`](server/src/README.md); `verify:delivery` covers real HTTP/SQLite/alarms and authorized tools.
 - `server/src/tools/<name>/index.ts`: export `create(context: ToolContext): Extension`; the extension name must match its directory. Duplicate extension/tool names or more than 32 tools fail startup, verified against the real registry. Tools are independent of ingress and enforce authorization, output/time limits, and replay classification. Extend Env through module-owned TypeScript declaration merging; shared bindings are wired sequentially during integration.
-- M2 owns adapters/slack, adapters/github, tools/github, and tools/sandbox. Directory-owned modules register without central edits; discover *.test.ts locally and register only index.ts.
-- Tools currently receive unbound principals with no resources. Session allowlists are not outbound authority; grant nothing until per-tool policy exists. Do not register ambient shell/fetch or fabricate successful unauthorized results.
+- M2 owns `packages/adapter-slack/`, `packages/adapter-github/`, `server/src/tools/github/`, and `server/src/tools/sandbox/`. Modules register from their directories without central registry edits. Tests discover directory-local `*.test.ts`; only `index.ts` is automatically registered.
+- Tools receive the persisted authenticated principal/resources and logical session ID. Unbound contexts deny all access; implicit authority changes within a session are rejected. Session allowlists alone grant no outbound tool rights. No ambient shell/fetch tools are registered. Unauthorized tools fail rather than returning fabricated success.
 - GitHub App/REST/webhook, Slack Web API, and Cloudflare Sandbox dependencies are installed. Sandbox container bindings and provisioning belong to that module.
 
 ## Verification evidence / limits
@@ -57,7 +57,7 @@ curl -sS http://127.0.0.1:8787/api/sessions/session-id/operations/stable-deliver
 
 `POST /adapters/webhook` accepts only `sessionId / operationId / input`, normalizes newlines to LF, and trims surrounding whitespace. TEAM_AUTH authorizes the session. After durable Pi SQLite acceptance it returns 202 with `{sessionId, operationId, accepted}` without waiting for the model. Retrying an ID preserves the first input and returns `accepted:false`, even when the inbox is full; new inputs then return 429. IDs use letters, digits, `_`, or `-`, up to 128 characters. Oversized bodies return 413, invalid input 400, unauthorized sessions 403, and unknown operations 404.
 
-Status reads real Pi pending/settled operations: queued/running/parked/done/unanswered, with text or reason. Missing models/auth never become success. Parked indicates restart exhaustion, not infinite retry. Authenticated controls are listed below. Register Anthropic/OpenAI/Cloudflare Gateway explicitly without fallback.
+Status reads Pi's real pending/settled operations: `queued / running / parked / done / unanswered`. Done includes text; unanswered includes a reason. Missing models or credentials never become success. Parked means the crash-restart limit was reached, not successful or infinite retry. Use authenticated retry, stop, and model controls below. Built-in and operator providers never silently fall back.
 
 `server/test/pilot.test.ts` is the vertical-slice example. It runs the built Worker on real Miniflare/workerd, SQLite, and HTTP, faking only external Anthropic SSE. Gated streams prove acceptance, running/queued states, limits, and concurrent dedupe. Reopening the same SQLite verifies recovery and retained results; repeated mid-run restarts exercise Pi's real parked-task guard. Other cases cover missing-model unanswered results and fail-closed auth. No fixed sleeps or test-only production hooks are needed. Rejected requests never reach the model, and model input contains no origin message.
 
@@ -71,11 +71,11 @@ npm run verify:sessions && npm run typecheck
 
 All APIs require TEAM_AUTH bearer auth. Preconfigure session IDs in each principal's allowlist; no dynamic grants. List only existing authorized sessions.
 
-| Method / path | Body / result |
-|---|---|
+| Method / path                    | Body / result                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
 | `GET /api/models` | Real pi-ai provider/model/API catalog, native/Gateway transport, and configuration status; no secrets |
 | `POST /api/sessions` | `{sessionId, model?: {provider, id}}`; 201 on creation, 409 on duplicate |
-| `GET /api/sessions` | `{sessions: [{sessionId, model, busy, pending}]}` |
+| `GET /api/sessions`              | `{sessions: [{sessionId, model, busy, pending}]}`                                   |
 | `GET /api/sessions/:id` | `{sessionId, model, busy, pending}`; 404 when absent |
 | `GET /api/sessions/:id/messages` | `{messages}` containing Pi's active transcript entries |
 | `PUT /api/sessions/:id/model` | `{provider, id}` persisted in Pi's agent settings |
@@ -84,11 +84,50 @@ All APIs require TEAM_AUTH bearer auth. Preconfigure session IDs in each princip
 
 Omitted models use server `MODEL_PROVIDER / MODEL_ID`. Invalid models return 400; missing credentials/defaults return 503 without changing existing state. Changes affect the next model request, not an in-flight call. Persisted Pi settings override environment defaults after restart. Lazy Webhook creation remains supported; an unconfigured model settles unanswered.
 
-The bundled cloudflare-ai-gateway catalog/provider requires CLOUDFLARE_API_KEY, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_GATEWAY_ID. It supports anthropic-messages/openai-completions/openai-responses, not all native APIs. Workers AI and arbitrary URLs are not auto-registered. No credential API/chat command exists; reject extra model keys. Never paste secrets into retained conversations.
+`cloudflare-ai-gateway` uses pi-ai's bundled provider/catalog and requires all three server settings: `CLOUDFLARE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_GATEWAY_ID`. It supports `anthropic-messages`, `openai-completions`, and `openai-responses`, not every native API. Other built-ins remain selectable. Register compatible URLs explicitly through operator configuration. No key-registration API/chat command exists, and model bodies reject extra keys. Never paste secrets into chat: ordinary messages are retained.
 
-Authenticated retry resumes parked work. Unanswered is terminal: inspect the reason, fix configuration, and submit a new ID; old IDs dedupe. Tools remain deny-all; session creation grants no ambient authority.
+Authenticated retry resumes parked work. Unanswered operations are terminal and cannot be retried that way; inspect the reason, fix configuration, and submit a new ID. The old ID stays deduplicated. Only explicit server resource grants authorize tools; creating a session grants no ambient rights.
 
 Verification uses real workerd, SQLite, HTTP, and fake external model SSE. It covers actual changed-model requests, transcript/abort persistence, denied sessions, invalid models and injected keys, missing configuration, and authenticated recovery from real parked state. Live native/Gateway connectivity is unverified.
+
+## Operator-configured providers (Gateway optional)
+
+`MODEL_PROVIDER / MODEL_ID` only select defaults. SDK `builtinModels()` registers every bundled provider, so choosing Groq needs no app change. Configure provider-specific secrets as server bindings; `authContext.env(name)` resolves arbitrary own string bindings, not browser or ambient Node values. Missing auth never becomes success; invalid secrets/configuration fail closed. Only the local launcher passes operator process values into Worker bindings. Interactive OAuth, credential files, and dynamic catalog refresh are unsupported.
+
+Compatible endpoint example: server-only `MODEL_PROVIDERS` JSON, typed by `ProviderConfig` in `server/src/provider-config.ts`:
+
+```json
+[
+  {
+    "id": "team-inference",
+    "api": "openai-completions",
+    "baseUrl": "https://inference.example.test/v1",
+    "auth": { "env": "TEAM_INFERENCE_SECRET" },
+    "models": [
+      {
+        "id": "team-chat",
+        "name": "Team Chat",
+        "reasoning": false,
+        "input": ["text"],
+        "contextWindow": 8192,
+        "maxTokens": 1024,
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+        "compat": { "supportsDeveloperRole": false, "maxTokensField": "max_tokens" }
+      }
+    ]
+  }
+]
+```
+
+Set `TEAM_INFERENCE_SECRET` separately, then select `MODEL_PROVIDER=team-inference` and `MODEL_ID=team-chat`. JSON supports lazy SDK implementations of `openai-completions`, `openai-responses`, and `anthropic-messages`; unauthenticated local services require explicit `auth:{keyless:true}`. Base URLs must use HTTP(S) without embedded credentials, query, or fragment. HTTP is only for trusted local paths. Limits are 128 KiB, 32 providers, and 256 models each. Unknown keys, duplicate IDs, or invalid metadata reject the full configuration. JSON compat supports the small documented set of common flags.
+
+Register other APIs, complete metadata/headers/auth, or SDK Provider objects in operator-owned `server/src/operator-providers.ts`. Use native pi-ai `createProvider()` without core changes. Registration order is built-ins, JSON, then the SDK array. Reusing an ID explicitly replaces a provider; it is not error fallback. Operators own endpoint selection; browsers/chat cannot register URLs, APIs, or credentials. The public catalog exposes only provider/model IDs, names, APIs, and configured status, not endpoints/auth/headers. Never put secrets in public names.
+
+```sh
+npm run verify:models && npm run verify && npx vp check
+```
+
+`verify:models` uses real Node pi-ai to serialize Groq/custom OpenAI-compatible requests, faking only external SSE. It proves Gateway-independent configuration, arbitrary secrets, negative cases, and catalog redaction. Real workerd/SQLite/HTTP tests cover auth, client-configuration rejection, and persisted custom model selection. **Not every built-in transport is guaranteed on workerd.** File/ambient AWS or Google auth, Node-specific transports, and OAuth remain unverified. Catalog/configured status is not connectivity proof. Unsupported transports fail without Gateway conversion or provider rerouting; successful Node serialization is not live LLM evidence.
 
 ## Dependency audit
 
