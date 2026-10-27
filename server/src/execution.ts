@@ -1,6 +1,6 @@
-import { validId, type Principal } from "@remote-agent/adapter-contract";
+import { validId, type Principal } from "@remote-agent/agent-contract";
 
-// Only trusted, authenticated adapters/control routes may construct this server-side grant.
+// Only trusted, authenticated triggers/control routes may construct this server-side grant.
 export function executionGrant(sessionId: string, principal: Principal | undefined) {
   if (
     !validId(sessionId) ||

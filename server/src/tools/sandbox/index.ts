@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
-import type { ToolContext } from "../../plugins";
+import type { ToolContext } from "../../tools";
 import { LIMITS, validate, type Operation, type SandboxBinding } from "./runtime";
 
 export function create(context: ToolContext) {

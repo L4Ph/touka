@@ -1,0 +1,13 @@
+{
+  "name": "@remote-agent/trigger-contract",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remote-agent/agent-contract": "*",
+    "hono": "^4.13.14"
+  }
+}

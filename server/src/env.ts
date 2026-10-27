@@ -1,15 +1,16 @@
 import type { SessionDirectory } from "./directory";
 import type { SessionAgent } from "./session";
-import type { AdapterEnv, Principal } from "@remote-agent/adapter-contract";
-import type { AdapterJobs } from "./jobs";
+import type { TriggerEnv } from "@remote-agent/trigger-contract";
+import type { Principal } from "@remote-agent/agent-contract";
+import type { TriggerJobs } from "./jobs";
 import type { SandboxSession } from "./tools/sandbox/worker";
-import type { GitHubEnv } from "./tools/github/auth";
-export interface Env extends GitHubEnv, AdapterEnv {
+import type { GitHubEnv } from "@remote-agent/connector-github";
+export interface Env extends GitHubEnv, TriggerEnv {
   SESSION_DIRECTORY?: DurableObjectNamespace<SessionDirectory>;
-  // Explicit one-time seeds for pre-index adapter IDs (DOs cannot be enumerated).
+  // Explicit one-time seeds for pre-index trigger IDs (DOs cannot be enumerated).
   SESSION_INDEX_SEEDS?: string;
   WEB_RESOURCES?: string;
-  ADAPTER_JOBS?: DurableObjectNamespace<AdapterJobs>;
+  TRIGGER_JOBS?: DurableObjectNamespace<TriggerJobs>;
   SANDBOX?: DurableObjectNamespace<SandboxSession>;
   SESSIONS: DurableObjectNamespace<SessionAgent>;
   // JSON array of {token, id, sessions, resources}; secret, never sent to clients.
@@ -18,5 +19,6 @@ export interface Env extends GitHubEnv, AdapterEnv {
   MODEL_ID?: string;
   // Server-only JSON ProviderConfig[]. SDK auth resolves arbitrary string bindings.
   MODEL_PROVIDERS?: string;
+  MCP_SERVERS?: string;
 }
 export type AppEnv = { Bindings: Env; Variables: { principal: Principal; teamViewer: boolean } };

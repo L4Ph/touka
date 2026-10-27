@@ -119,7 +119,7 @@ test(
       await cp("tsconfig.json", resolve(root, "server/tsconfig.json"));
       await cp("../shared", resolve(root, "shared"), { recursive: true });
       await cp("../packages", resolve(root, "packages"), { recursive: true });
-      const directory = resolve(root, "packages/adapter-probe/src");
+      const directory = resolve(root, "packages/trigger-probe/src");
       await mkdir(directory, { recursive: true });
       await writeFile(
         resolve(directory, "index.ts"),
@@ -131,7 +131,7 @@ test(
         app.post('/', async (c) => {
           const { input, reply } = await c.req.json();
           if (!c.get('principal').sessions.includes(input.sessionId)) return c.json({ error: 'forbidden' }, 403);
-          return c.json(await execute(c.env, { adapter: 'probe', input, reply, principal: c.get('principal') }), 202);
+          return c.json(await execute(c.env, { trigger: 'probe', input, reply, principal: c.get('principal') }), 202);
         });
         app.get('/:session/:operation', async (c) => {
           if (!c.get('principal').sessions.includes(c.req.param('session'))) return c.json({ error: 'forbidden' }, 403);
@@ -181,7 +181,7 @@ test(
         compatibilityFlags: ["nodejs_compat"],
         durableObjects: {
           SESSIONS: { className: "SessionAgent", useSQLite: true },
-          ADAPTER_JOBS: { className: "AdapterJobs", useSQLite: true },
+          TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
         },
         durableObjectsPersist: resolve(root, "state"),
         bindings: {
@@ -273,16 +273,16 @@ test(
         reply: { kind },
       });
       const status = (session: string) =>
-        call(`/adapters/probe/${session}/${session}-op`).then((r) => r.json()) as Promise<{
+        call(`/triggers/probe/${session}/${session}-op`).then((r) => r.json()) as Promise<{
           state: string;
           attempts: number;
           failure: unknown;
         }>;
-      assert.equal((await call("/adapters/probe", "POST", payload("retry"), {})).status, 401);
-      assert.equal((await call("/adapters/probe", "POST", payload("private"))).status, 403);
+      assert.equal((await call("/triggers/probe", "POST", payload("retry"), {})).status, 401);
+      assert.equal((await call("/triggers/probe", "POST", payload("private"))).status, 403);
       assert.equal(
         (
-          await call("/adapters/probe", "POST", {
+          await call("/triggers/probe", "POST", {
             ...payload("retry"),
             reply: { data: "x".repeat(8193) },
           })
@@ -290,13 +290,13 @@ test(
         400,
       );
       for (const session of ["retry", "permanent"])
-        assert.equal((await call("/adapters/probe", "POST", payload(session))).status, 202);
-      assert.deepEqual(await (await call("/adapters/probe", "POST", payload("retry"))).json(), {
+        assert.equal((await call("/triggers/probe", "POST", payload(session))).status, 202);
+      assert.deepEqual(await (await call("/triggers/probe", "POST", payload("retry"))).json(), {
         accepted: false,
         operationId: "retry-op",
       });
       assert.equal(
-        (await call("/adapters/probe", "POST", payload("retry", "changed"))).status,
+        (await call("/triggers/probe", "POST", payload("retry", "changed"))).status,
         409,
       );
       await until(
@@ -308,11 +308,11 @@ test(
         (value) => value.state === "failed",
       );
       // Interrupt a real vendor send and a queued tool-using Pi operation, not just an idle object.
-      assert.equal((await call("/adapters/probe", "POST", payload("crash"))).status, 202);
+      assert.equal((await call("/triggers/probe", "POST", payload("crash"))).status, 202);
       await crashRequest;
       assert.equal(
         (
-          await call("/adapters/webhook", "POST", {
+          await call("/triggers/webhook", "POST", {
             sessionId: "tools",
             operationId: "tools-op",
             input: "read allowed",
@@ -352,8 +352,8 @@ test(
       );
       assert.equal(deliveries.get("permanent-op")?.length, 1);
 
-      assert.equal((await call("/adapters/probe", "POST", payload("exhausted"))).status, 202);
-      assert.equal((await call("/adapters/probe", "POST", payload("timeout"))).status, 202);
+      assert.equal((await call("/triggers/probe", "POST", payload("exhausted"))).status, 202);
+      assert.equal((await call("/triggers/probe", "POST", payload("timeout"))).status, 202);
       // No submit carrying a principal after restart: the queued operation must recover its own grant.
       const toolResult = await until<{ status: string; text?: string }>(
         () => call("/api/sessions/tools/operations/tools-op").then((r) => r.json()),
@@ -369,7 +369,7 @@ test(
       assert.equal(
         (
           await call(
-            "/adapters/webhook",
+            "/triggers/webhook",
             "POST",
             { sessionId: "tools", operationId: "escalate", input: "read allowed" },
             { ...headers, Authorization: `Bearer ${token}-other` },
@@ -379,7 +379,7 @@ test(
       );
       assert.equal(
         (
-          await call("/adapters/probe", "POST", payload("denied", "success", "read allowed"), {
+          await call("/triggers/probe", "POST", payload("denied", "success", "read allowed"), {
             ...headers,
             Authorization: `Bearer ${token}-other`,
           })
@@ -430,18 +430,18 @@ test(
         5,
         "Reply retries and duplicate acceptance must not rerun Pi",
       );
-      assert.deepEqual(await (await call("/adapters/probe", "POST", payload("exhausted"))).json(), {
+      assert.deepEqual(await (await call("/triggers/probe", "POST", payload("exhausted"))).json(), {
         accepted: false,
         operationId: "exhausted-op",
       });
       for (let index = 0; index < 100; index++) {
         const job = payload("queue", "permanent");
         job.input.operationId = `queued-${index}`;
-        assert.equal((await call("/adapters/probe", "POST", job)).status, 202);
+        assert.equal((await call("/triggers/probe", "POST", job)).status, 202);
       }
       const overflow = payload("queue");
       overflow.input.operationId = "overflow";
-      const rejected = await call("/adapters/probe", "POST", overflow);
+      const rejected = await call("/triggers/probe", "POST", overflow);
       assert.equal(rejected.status, 429);
       assert.deepEqual(await rejected.json(), { error: { code: "delivery_queue_full" } });
     } finally {

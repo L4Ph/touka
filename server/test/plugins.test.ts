@@ -5,22 +5,23 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { build } from "vite";
 
-test("workspace adapters and directory tools are discovered and usable after a production build", async () => {
+test("workspace triggers and directory tools are discovered and usable after a production build", async () => {
   const root = await mkdtemp(resolve(".plugin-fixture-"));
   try {
     const src = resolve(root, "server/src");
-    const adapter = resolve(root, "packages/adapter-probe/src");
-    await mkdir(adapter, { recursive: true });
+    const trigger = resolve(root, "packages/trigger-probe/src");
+    await mkdir(trigger, { recursive: true });
     await mkdir(resolve(src, "tools/probe"), { recursive: true });
     await cp("src/plugins.ts", resolve(src, "plugins.ts"));
+    await cp("src/tools.ts", resolve(src, "tools.ts"));
     await cp("src/registry.ts", resolve(src, "registry.ts"));
     // This fixture composes a real tool registry behind the same typed package capability.
     await writeFile(
-      resolve(src, "adapter.ts"),
+      resolve(src, "trigger.ts"),
       `
       import { createRegistry } from '@earendil-works/pi-durable';
-      import { installTools } from './plugins';
-      export const adapterDependencies = { submit: async (_env, input) => {
+      import { installTools } from './tools';
+      export const triggerDependencies = { submit: async (_env, input) => {
         const registry = createRegistry();
         installTools(registry, { env: {}, sessionId: input.sessionId,
           principal: { id: 'fixture-member', sessions: [input.sessionId], resources: [] } });
@@ -34,14 +35,14 @@ test("workspace adapters and directory tools are discovered and usable after a p
       resolve(src, "index.ts"),
       `
       import { Hono } from 'hono';
-      import { mountAdapters } from './plugins';
+      import { mountTriggers } from './plugins';
       const app = new Hono();
-      mountAdapters(app);
+      mountTriggers(app);
       export default app;
     `,
     );
     await writeFile(
-      resolve(adapter, "index.ts"),
+      resolve(trigger, "index.ts"),
       `
       import { Hono } from 'hono';
       export function create({ submit }) {
@@ -76,7 +77,7 @@ test("workspace adapters and directory tools are discovered and usable after a p
       },
     });
     const { default: app } = await import(pathToFileURL(resolve(root, "dist/index.js")).href);
-    const response = await app.request("http://fixture/adapters/probe/run?text=directory-owned");
+    const response = await app.request("http://fixture/triggers/probe/run?text=directory-owned");
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       text: "DIRECTORY-OWNED",
@@ -84,7 +85,7 @@ test("workspace adapters and directory tools are discovered and usable after a p
     });
     assert.equal((await app.request("http://fixture/probe/run?text=wrong-namespace")).status, 404);
     assert.equal(
-      (await app.request("http://fixture/adapters/other/run?text=wrong-adapter")).status,
+      (await app.request("http://fixture/triggers/other/run?text=wrong-trigger")).status,
       404,
     );
   } finally {

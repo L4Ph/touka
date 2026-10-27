@@ -1,0 +1,18 @@
+{
+  "name": "@remote-agent/trigger-github",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remote-agent/agent-contract": "*",
+    "@remote-agent/connector-github": "*",
+    "@remote-agent/trigger-contract": "*",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260730.0"
+  }
+}

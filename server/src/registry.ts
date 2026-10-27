@@ -1,5 +1,5 @@
 import type { Extension, Registry } from "@earendil-works/pi-durable";
-import { LIMITS } from "@remote-agent/adapter-contract";
+import { LIMITS } from "@remote-agent/agent-contract";
 
 export function installExtension(registry: Registry, extension: Extension): void {
   const snapshot = registry.snapshot();

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSubmitInput } from "@remote-agent/adapter-contract";
+import { isSubmitInput } from "@remote-agent/agent-contract";
 
 test("core accepts only bounded transport-independent submissions", () => {
   const input = { sessionId: "session-1", operationId: "op_1", input: "Explain this chart" };

@@ -67,7 +67,7 @@ The binding and migration already exist: do not add duplicates. Paths are relati
 
 `Env` already declares `SANDBOX?: DurableObjectNamespace<SandboxSession>`.
 The tools use the equivalent structural internal RPC type. Keep this DO private: no public HTTP route
-or adapter-controlled `getByName`. An absent binding/container fails explicitly;
+or trigger-controlled `getByName`. An absent binding/container fails explicitly;
 it does not execute locally or fabricate a result. Tool registration remains
 possible without the optional binding, so unrelated sessions still start.
 

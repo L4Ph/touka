@@ -1,3 +1,7 @@
+## Mandarin
+
+Before changing module responsibilities or the implementation workflow, read `CONTEXT.md` and `docs/connections.md`.
+
 <!--injected-by-void-v1.3.0-->
 
 ## Void

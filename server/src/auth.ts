@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "./env";
-import { validId, type Principal, type AdapterAppEnv } from "@remote-agent/adapter-contract";
+import { validId, type Principal } from "@remote-agent/agent-contract";
 
 type Member = Principal & { token: string };
 function members(raw: string | undefined): Member[] {
@@ -35,7 +35,10 @@ async function equal(a: string, b: string): Promise<boolean> {
   const [left, right] = await Promise.all([digest(a), digest(b)]);
   return timingSafeEqual(new Uint8Array(left), new Uint8Array(right));
 }
-export const teamAuth: MiddlewareHandler<AdapterAppEnv> = async (c, next) => {
+export const teamAuth: MiddlewareHandler<{
+  Bindings: { TEAM_AUTH?: string };
+  Variables: { principal: Principal };
+}> = async (c, next) => {
   let configured: Member[];
   try {
     configured = members(c.env.TEAM_AUTH);

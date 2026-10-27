@@ -114,12 +114,12 @@ export function webRuntimeOptions(
         durableObjects: {
           SESSIONS: { className: "SessionAgent", useSQLite: true },
           SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
-          ADAPTER_JOBS: { className: "AdapterJobs", useSQLite: true },
+          TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
         },
         bindings: {
           TEAM_AUTH: JSON.stringify([
             {
-              id: "adapter",
+              id: "trigger",
               token: "web-test-machine-token-at-least-32-characters",
               sessions: ["discord_team_thread"],
               resources: [],

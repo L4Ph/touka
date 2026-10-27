@@ -1,15 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
-import { isSubmitInput, validId } from "@remote-agent/adapter-contract";
+import { isSubmitInput, validId } from "@remote-agent/agent-contract";
 import type { Env } from "./env";
 import { executionGrant } from "./execution";
-import { createGitHubAppAuth } from "./tools/github/auth";
 
 import type {
-  AdapterExecution,
+  TriggerExecution,
   DeliveryHandler,
   DeliveryResult,
-} from "@remote-agent/adapter-contract";
-export interface DeliveryJob extends AdapterExecution {
+} from "@remote-agent/trigger-contract";
+export interface DeliveryJob extends TriggerExecution {
   state: "queued" | "waiting" | "delivering" | "delivered" | "failed";
   created: number;
   due: number;
@@ -26,17 +25,15 @@ export const DELIVERY_LIMITS = {
 const terminal = (job: DeliveryJob) => job.state === "delivered" || job.state === "failed";
 const code = (value: string) => (/^[a-z][a-z0-9_]{0,63}$/.test(value) ? value : "delivery_failed");
 
-/** Standalone adapter Workers can host the same durable engine with their own handler registry. */
+/** Standalone trigger Workers can host the same durable engine with their own handler registry. */
 export function deliveryWorker(handlers: Readonly<Record<string, DeliveryHandler>>) {
   return class DeliveryWorker extends DurableObject<Env> {
-    private readonly github = createGitHubAppAuth(this.env);
-
-    async accept(request: AdapterExecution) {
+    async accept(request: TriggerExecution) {
       return this.ctx.blockConcurrencyWhile(async () => {
         if (
           !request ||
-          !/^[a-z][a-z0-9-]{0,63}$/.test(request.adapter) ||
-          !Object.hasOwn(handlers, request.adapter) ||
+          !/^[a-z][a-z0-9-]{0,63}$/.test(request.trigger) ||
+          !Object.hasOwn(handlers, request.trigger) ||
           !isSubmitInput(request.input) ||
           !request.reply ||
           typeof request.reply !== "object" ||
@@ -44,9 +41,9 @@ export function deliveryWorker(handlers: Readonly<Record<string, DeliveryHandler
           new TextEncoder().encode(JSON.stringify(request.reply)).length >
             DELIVERY_LIMITS.replyBytes
         )
-          throw new Error("invalid_adapter_execution");
+          throw new Error("invalid_trigger_execution");
         const grant = executionGrant(request.input.sessionId, request.principal);
-        const identity = `${request.adapter}:${request.input.sessionId}`;
+        const identity = `${request.trigger}:${request.input.sessionId}`;
         const storedIdentity = await this.ctx.storage.get<string>("identity");
         if (storedIdentity && storedIdentity !== identity)
           throw new Error("delivery_identity_conflict");
@@ -55,13 +52,13 @@ export function deliveryWorker(handlers: Readonly<Record<string, DeliveryHandler
         if (existing) {
           if (
             JSON.stringify({
-              adapter: existing.adapter,
+              trigger: existing.trigger,
               input: existing.input,
               principal: existing.principal,
               reply: existing.reply,
             }) !==
             JSON.stringify({
-              adapter: request.adapter,
+              trigger: request.trigger,
               input: request.input,
               principal: grant.principal,
               reply: request.reply,
@@ -80,7 +77,7 @@ export function deliveryWorker(handlers: Readonly<Record<string, DeliveryHandler
         if (jobs.size >= DELIVERY_LIMITS.jobs) throw new Error("delivery_queue_full");
         const now = Date.now();
         const job: DeliveryJob = {
-          adapter: request.adapter,
+          trigger: request.trigger,
           input: request.input,
           principal: grant.principal,
           reply: request.reply,
@@ -157,12 +154,11 @@ export function deliveryWorker(handlers: Readonly<Record<string, DeliveryHandler
                     let outcome: DeliveryResult;
                     try {
                       outcome = await Promise.race([
-                        handlers[job.adapter]({
+                        handlers[job.trigger]({
                           env: this.env,
                           job,
                           result,
                           signal: controller.signal,
-                          github: this.github,
                         }),
                         deadline,
                       ]);

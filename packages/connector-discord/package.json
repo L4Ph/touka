@@ -1,0 +1,10 @@
+{
+  "name": "@remote-agent/connector-discord",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {}
+}

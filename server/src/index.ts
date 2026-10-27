@@ -2,14 +2,14 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import type { Env } from "./env";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { LIMITS, validId, isModelSelection } from "@remote-agent/adapter-contract";
+import { LIMITS, validId, isModelSelection } from "@remote-agent/agent-contract";
 import type { AppEnv } from "./env";
 import { teamAuth, sessionAccess, knownSessionIds } from "./auth";
-import { mountAdapters } from "./plugins";
+import { mountTriggers } from "./plugins";
 import { modelCatalog } from "./models";
 export { SessionDirectory } from "./directory";
 export { SessionAgent } from "./session";
-export { AdapterJobs } from "./jobs";
+export { TriggerJobs } from "./jobs";
 export { SandboxSession } from "./tools/sandbox/worker";
 
 const app = new Hono<AppEnv>();
@@ -20,7 +20,7 @@ app.onError((error, c) => {
     return c.json({ error: { code: error.message } }, 409);
   if (error.message === "delivery_queue_full")
     return c.json({ error: { code: error.message } }, 429);
-  if (error.message === "invalid_adapter_execution")
+  if (error.message === "invalid_trigger_execution")
     return c.json({ error: { code: error.message } }, 400);
   if (["invalid_provider_config", "invalid_provider_secret"].includes(error.message))
     return c.json({ error: { code: "model_unconfigured" } }, 503);
@@ -174,7 +174,7 @@ const routes = control
     return c.json(result);
   });
 app.route("/", control);
-mountAdapters(app);
+mountTriggers(app);
 
 // Named entrypoints are service-binding-only, not publicly routed Worker URLs.
 export class WebGateway extends WorkerEntrypoint<Env> {

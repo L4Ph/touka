@@ -1,0 +1,4 @@
+{
+  "extends": "../trigger-contract/tsconfig.json",
+  "include": ["src/**/*.ts"]
+}

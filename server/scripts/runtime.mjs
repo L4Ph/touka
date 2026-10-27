@@ -18,7 +18,11 @@ if (command === "launch") {
     ].map((path) => ({ type: "ESModule", path })),
     compatibilityDate: "2026-08-01",
     compatibilityFlags: ["nodejs_compat"],
-    durableObjects: { SESSIONS: { className: "SessionAgent", useSQLite: true } },
+    durableObjects: {
+      SESSIONS: { className: "SessionAgent", useSQLite: true },
+      SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
+      TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
+    },
     durableObjectsPersist: ".runtime/state",
     // Local server inherits operator environment, including arbitrary provider secrets.
     bindings: Object.fromEntries(

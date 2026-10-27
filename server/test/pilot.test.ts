@@ -100,7 +100,7 @@ test(
     let runtime = new Miniflare(options);
     let url: URL;
     const submit = (body: unknown, customHeaders: Record<string, string> = headers) =>
-      fetch(new URL("/adapters/webhook", url), {
+      fetch(new URL("/triggers/webhook", url), {
         method: "POST",
         headers: customHeaders,
         body: JSON.stringify(body),
@@ -128,9 +128,9 @@ test(
       assert.equal(
         (await submit({})).status,
         400,
-        "The adapter must enforce the shared input schema",
+        "The trigger must enforce the shared input schema",
       );
-      const malformed = await fetch(new URL("/adapters/webhook", url), {
+      const malformed = await fetch(new URL("/triggers/webhook", url), {
         method: "POST",
         headers,
         body: "{",
@@ -332,7 +332,7 @@ test(
     });
     try {
       const url = await runtime.ready;
-      const response = await fetch(new URL("/adapters/webhook", url), {
+      const response = await fetch(new URL("/triggers/webhook", url), {
         method: "POST",
         headers,
         body: JSON.stringify(payload("no-model")),
@@ -354,7 +354,7 @@ test(
       const unconfigured = await runtime.getWorker("unconfigured");
       assert.equal(
         (
-          await unconfigured.fetch("http://localhost/adapters/webhook", {
+          await unconfigured.fetch("http://localhost/triggers/webhook", {
             method: "POST",
             headers,
             body: JSON.stringify(payload("no-auth")),

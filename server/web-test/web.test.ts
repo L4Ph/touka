@@ -10,7 +10,7 @@ import { chromium, expect } from "@playwright/test";
 import { reply, webRuntimeOptions } from "./fixtures";
 
 test(
-  "SSR Mandarin chat uses team cookies, shared adapter threads, stable retries and fresh WS reconnect",
+  "SSR Mandarin chat uses team cookies, shared trigger threads, stable retries and fresh WS reconnect",
   { timeout: 60000 },
   async () => {
     const state = await mkdtemp(join(tmpdir(), "mandarin-web-"));
@@ -194,15 +194,15 @@ test(
       await expect(alicePage.getByText("Provider and model", { exact: true })).toBeFocused();
       await alicePage.keyboard.press("Tab");
       await expect(alicePage.getByLabel("Message Mandarin", { exact: true })).toBeFocused();
-      await alicePage.keyboard.type("Shared adapter continuation");
+      await alicePage.keyboard.type("Shared trigger continuation");
       await alicePage.keyboard.press("Tab");
       await expect(
         alicePage.getByRole("button", { name: "Send message", exact: true }),
       ).toBeFocused();
       await alicePage.keyboard.press("Space");
-      await expect(bobPage.getByLabel("Transcript")).toContainText("Shared adapter continuation");
+      await expect(bobPage.getByLabel("Transcript")).toContainText("Shared trigger continuation");
       await expect(bobPage.getByLabel("Transcript")).toContainText("Mandarin local response");
-      // Sort fifty real conversations before the adapter thread, forcing discovery onto page two.
+      // Sort fifty real conversations before the trigger thread, forcing discovery onto page two.
       for (let index = 0; index < 50; index++) {
         const created = await alice.request.post(`${origin}/api/agent/sessions`, {
           data: { sessionId: `a_directory_${String(index).padStart(2, "0")}` },
@@ -223,7 +223,7 @@ test(
       for (const view of [alicePage, bobPage]) {
         await view.reload();
         await view.getByRole("button", { name: "discord_team_thread", exact: true }).click();
-        await expect(view.getByLabel("Transcript")).toContainText("Shared adapter continuation");
+        await expect(view.getByLabel("Transcript")).toContainText("Shared trigger continuation");
         await expect(view.getByLabel("Transcript")).toContainText("Mandarin local response");
       }
       await alicePage.getByRole("button", { name: "New chat", exact: true }).click();

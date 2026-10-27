@@ -3,7 +3,7 @@ import type { Provider } from "@earendil-works/pi-ai/models";
 import { configuredProviders } from "./provider-config";
 import { operatorProviders } from "./operator-providers";
 import type { Env } from "./env";
-import type { ModelSelection } from "@remote-agent/adapter-contract";
+import type { ModelSelection } from "@remote-agent/agent-contract";
 
 export function sessionModels(env: Env, providers: readonly Provider[] = operatorProviders) {
   const models = builtinModels({

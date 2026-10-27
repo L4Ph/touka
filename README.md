@@ -1,6 +1,6 @@
 # Mandarin
 
-A team-shared general-purpose agent with an independent Void React Pages SSR UI at the root and a Pi Durable Worker in `server/`. Keep existing internal package IDs and binding names.
+A general-purpose team agent with an independent Void React Pages SSR UI at the repository root and a Pi Durable Worker in `server/`. External integrations are separated into Connectors, Triggers, and Tools.
 
 ## Install / verify
 
@@ -8,10 +8,10 @@ Use Node 24, npm, and Cloudflare's `cf` CLI.
 
 ```sh
 npm ci
-npm run verify
+npm run verify:all
 ```
 
-Preserve Void's default Vite+ toolchain. After the official 1.4.0 migration, 37 runtime tests, builds, delivery verification, and check passed with 0 errors and 44 warnings. That is a migration baseline, not proof for subsequent changes. The root uses `vp -C .`; the server builds independently, with real Node/workerd tests.
+Keep Void's default Vite+ toolchain. The root app uses `vp -C .`; the independent server uses `vp build/dev/lint`. Tests run against real Node/workerd runtimes. `verify:all` covers workspace and UI types, builds, standard tests, authentication, Discord, headless Web integration, formatting, and linting.
 
 `verify` runs server type checks, Oxlint, the Worker build, contract tests, real workerd/SQLite/HTTP smoke tests, and the Void SSR build within 120 seconds. Build the server before `npm test`. Root dev/build scripts target the UI; `npm run dev -w server` or `cd server && cf dev` targets the independent Worker. No deployment has been performed.
 
@@ -21,13 +21,13 @@ Preserve Void's default Vite+ toolchain. After the official 1.4.0 migration, 37 
 
 Configure exact verified emails in the comma-separated `TEAM_EMAILS`, `BETTER_AUTH_SECRET`, and OAuth provider credentials on the Web Worker. GitHub is the default in `void.config.ts`, separate from the bot App. Password signup is disabled; missing configuration denies access. `AGENT_CORE` targets the core's named `WebGateway` entry point. All members can view, continue, stop, and change models on the same Session DO without expanding existing tool grants.
 
-**Existing data:** Machine allowlist IDs are backfilled automatically. Supply older adapter thread IDs absent from those lists through `SESSION_INDEX_SEEDS`; DOs cannot be enumerated. New Web and adapter sessions register idempotently in the durable directory. Auth SQL is in `db/migrations/`. See [shared web authentication](docs/shared-web-auth.md) for cookies, CSRF, revocation, pagination, configuration, and limitations. Live OAuth/LLM connectivity and deployment are unverified.
+**Existing data:** Machine allowlist IDs are backfilled automatically. Supply older trigger thread IDs absent from those lists through `SESSION_INDEX_SEEDS`; DOs cannot be enumerated. New Web and trigger sessions register idempotently in the durable directory. Auth SQL is in `db/migrations/`. See [shared web authentication](docs/shared-web-auth.md) for cookies, CSRF, revocation, pagination, configuration, and limitations. Live OAuth/LLM connectivity and deployment are unverified.
 
 ## Mandarin web UI
 
 `npm run verify:web` builds both Workers and checks UI types, stream reducer behavior, and the real SSR/Better Auth/D1/core DO/HTTP/WS app in headless Chrome. Local Google Chrome is required: Playwright uses `channel: chrome` and `headless: true`. Temporary runtimes are disposed. Only external OAuth and LLM boundaries are faked; this is not live-service evidence.
 
-The UI loads every page of the team directory and can select and continue adapter-created Session DOs. It supports creation, history, streaming text/tool/run state, stop, parked-work retry, model selection, and fresh snapshots after reconnect. Retry an uncertain send with the same operation ID. Pending input lives only in page memory and is lost on reload or tab closure; inspect shared history before resending. Stop and model changes affect all viewers. Content is rendered as text, not executed as HTML or Markdown.
+The UI loads every page of the team directory and can select and continue trigger-created Session DOs. It supports creation, history, streaming text/tool/run state, stop, parked-work retry, model selection, and fresh snapshots after reconnect. Retry an uncertain send with the same operation ID. Pending input lives only in page memory and is lost on reload or tab closure; inspect shared history before resending. Stop and model changes affect all viewers. Content is rendered as text, not executed as HTML or Markdown.
 
 Use the `AGENT_CORE` service binding for separate Web/core origins. The browser connects only to its Web origin with cookies; it cannot configure core URLs, bearer tokens, or keys. See the setup above and `docs/shared-web-auth.md` for authentication and legacy index migration. New conversations use Mandarin's English system identity; existing instructions are not overwritten.
 
@@ -46,15 +46,27 @@ npm run cleanup -w server  # Stop only the managed process; preserve durable dat
 
 Launch runs the built Worker in Miniflare and keeps local DO data in `server/.runtime/state`. Ctrl-C also cleans up the process. `/health` reports liveness, not credential or external-service readiness. The runtime endpoint opens real PiHarness/Lifecycle state and reports root conversation `1` and configuration status. The URL session ID names a DO, not Pi's internal conversation. Doctor creates no DO; Drive initializes one.
 
+## Connector / Trigger / Tool
+
+Connectors own external APIs, credentials, token lifecycle, resource authorization, and rate limits. Triggers own events, durable acceptance/ACK, conversation mapping, and reply orchestration. Tools expose Connector operations under server-validated grants. An Event is data, not executable ingress. A Web-created conversation can use GitHub without selecting a Trigger. Ingress authentication and reply tokens do not confer contents-write permission. No legacy package or route shim remains.
+
+See [connections](docs/connections.md) for dependency direction, responsibilities, and limits. `npm run verify:connections` covers shared GitHub Connector use by Trigger replies and Web Tools, denied grants, signatures, ACK/outbox behavior, and real runtime recovery. Only the independent historical fixture retains old routes.
+
+## MCP
+
+`packages/connector-mcp` provides Pi's `mcp_list_tools` and `mcp_call_tool`. It uses Streamable HTTP with public servers or server-secret authentication headers. Both the configured tool allowlist and the conversation's `mcp:<server>:<tool>` grant are required. AI Gateway is not required.
+
+See the [MCP Connector](packages/connector-mcp/README.md) for setup, the 30-second operation deadline, output limits, and unsupported OAuth features. `npm run verify:mcp` exercises the real SDK protocol and authorized/denied tool calls through workerd, SQLite, and Pi. It does not prove live MCP connectivity.
+
 ## Shared seams / ownership
 
-- `packages/adapter-contract/src/core.ts`: transport-neutral `sessionId / operationId / input`, with no source union or origin prompt. Requests are capped at 32 KiB, input at 16k characters, IDs at 128 characters, pending operations at 16, and registered tools at 32. Webhook pending limits include running work.
+- `packages/agent-contract/src/index.ts`: transport-neutral `sessionId / operationId / input`, with no source union or origin prompt. Requests are capped at 32 KiB, input at 16k characters, IDs at 128 characters, pending operations at 16, and registered tools at 32. Webhook pending limits include running work.
 - `server/src/session.ts`: real PiHarness, Lifecycle, `onWake`, SQLite, and Pi `~1.4.0`. Provider/model selection is explicit with no fallback. State inspection works without a model but does not imply successful execution. Models come from pi-ai and operator registrations; SDK authContext resolves arbitrary server secret bindings. Missing configuration is never replaced by another provider.
-- `packages/adapter-<name>/src/index.ts`: independent npm packages export `create(dependencies): Hono<AdapterAppEnv>` using typed `adapter-contract` capabilities, not server/core internals. They mount at `/adapters/<name>` and export `deliver(context)` for the shared SQLite outbox/alarm. Each authenticates fail-closed, owns signatures, policies, body/thread/reply formats, and calls `dependencies.execute` only after authentication. See [`server/src/README.md`](server/src/README.md); `verify:delivery` covers real HTTP/SQLite/alarms and authorized tools.
+- `packages/trigger-<name>/src/index.ts`: independent npm packages export `create(dependencies): Hono<TriggerAppEnv>` and use typed `trigger-contract` capabilities, not server/core internals. They mount at `/triggers/<name>`. Export `deliver(context)` to register a shared SQLite outbox/alarm reply handler. Each Trigger authenticates fail-closed and owns signatures, allowlists, bodies, thread mapping, and replies before calling `dependencies.execute`. Connector packages own external APIs and resource authorization. See [`server/src/README.md`](server/src/README.md); `npm run verify:delivery` exercises real HTTP, SQLite, alarms, and authorized tools.
 - `server/src/tools/<name>/index.ts`: export `create(context: ToolContext): Extension`; the extension name must match its directory. Duplicate extension/tool names or more than 32 tools fail startup, verified against the real registry. Tools are independent of ingress and enforce authorization, output/time limits, and replay classification. Extend Env through module-owned TypeScript declaration merging; shared bindings are wired sequentially during integration.
-- Discord HTTP Interactions: see [`packages/adapter-discord/README.md`](packages/adapter-discord/README.md). `discord-hono` handles `/ask prompt:<task>`, signatures/PING, guild AND actor policy, durable ACK/outbox, original response edits, and expiration. Conversations use channel IDs for ordinary channels and thread IDs for actual threads. Gateway mentions, DMs, and implicit bot fallback are unsupported. `npm run verify:discord` uses real workerd/SQLite with external fakes, not live registration or deployment.
+- Discord HTTP Interactions: see [`packages/trigger-discord/README.md`](packages/trigger-discord/README.md). `discord-hono` handles `/ask prompt:<task>`, signatures/PING, guild AND actor policy, durable ACK/outbox, original response edits, and expiration. Conversations use channel IDs for ordinary channels and thread IDs for actual threads. Gateway mentions, DMs, and implicit bot fallback are unsupported. `npm run verify:discord` uses real workerd/SQLite with external fakes, not live registration or deployment.
 
-- M2 owns `packages/adapter-slack/`, `packages/adapter-github/`, `server/src/tools/github/`, and `server/src/tools/sandbox/`. Modules register from their directories without central registry edits. Tests discover directory-local `*.test.ts`; only `index.ts` is automatically registered.
+- M2 owns `packages/trigger-slack/`, `packages/trigger-github/`, `server/src/tools/github/`, and `server/src/tools/sandbox/`. Modules register from their directories without central registry edits. Tests discover directory-local `*.test.ts`; only `index.ts` is automatically registered.
 - Tools receive the persisted authenticated principal/resources and logical session ID. Unbound contexts deny all access; implicit authority changes within a session are rejected. Session allowlists alone grant no outbound tool rights. No ambient shell/fetch tools are registered. Unauthorized tools fail rather than returning fabricated success.
 - GitHub App/REST/webhook, Slack Web API, and Cloudflare Sandbox dependencies are installed. Sandbox container bindings and provisioning belong to that module.
 
@@ -68,14 +80,14 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 npm run verify:pilot
 npm run typecheck
 # Against a running Worker, AGENT_TOKEN must authorize the target session.
-curl -sS http://127.0.0.1:8787/adapters/webhook \
+curl -sS http://127.0.0.1:8787/triggers/webhook \
   -H "Authorization: Bearer $AGENT_TOKEN" -H 'Content-Type: application/json' \
   -d '{"sessionId":"session-id","operationId":"stable-delivery-id","input":"Hello"}'
 curl -sS http://127.0.0.1:8787/api/sessions/session-id/operations/stable-delivery-id \
   -H "Authorization: Bearer $AGENT_TOKEN"
 ```
 
-`POST /adapters/webhook` accepts only `sessionId / operationId / input`, normalizes newlines to LF, and trims surrounding whitespace. TEAM_AUTH authorizes the session. After durable Pi SQLite acceptance it returns 202 with `{sessionId, operationId, accepted}` without waiting for the model. Retrying an ID preserves the first input and returns `accepted:false`, even when the inbox is full; new inputs then return 429. IDs use letters, digits, `_`, or `-`, up to 128 characters. Oversized bodies return 413, invalid input 400, unauthorized sessions 403, and unknown operations 404.
+`POST /triggers/webhook` accepts only `sessionId / operationId / input`, normalizes newlines to LF, and trims surrounding whitespace. TEAM_AUTH authorizes the session. After durable Pi SQLite acceptance it returns 202 with `{sessionId, operationId, accepted}` without waiting for the model. Retrying an ID preserves the first input and returns `accepted:false`, even when the inbox is full; new inputs then return 429. IDs use letters, digits, `_`, or `-`, up to 128 characters. Oversized bodies return 413, invalid input 400, unauthorized sessions 403, and unknown operations 404.
 
 Status reads Pi's real pending/settled operations: `queued / running / parked / done / unanswered`. Done includes text; unanswered includes a reason. Missing models or credentials never become success. Parked means the crash-restart limit was reached, not successful or infinite retry. Use authenticated retry, stop, and model controls below. Built-in and operator providers never silently fall back.
 

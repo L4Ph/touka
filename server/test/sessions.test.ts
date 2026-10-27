@@ -182,7 +182,7 @@ test(
       );
       assert.equal(
         (
-          await call("/adapters/webhook", "POST", {
+          await call("/triggers/webhook", "POST", {
             sessionId: "one",
             operationId: "stop-me",
             input: "Remember this sentence",

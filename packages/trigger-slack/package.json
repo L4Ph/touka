@@ -1,0 +1,20 @@
+{
+  "name": "@remote-agent/trigger-slack",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../server && vpx --test ../packages/trigger-slack/src/slack.test.ts"
+  },
+  "dependencies": {
+    "@remote-agent/agent-contract": "*",
+    "@remote-agent/connector-slack": "*",
+    "@remote-agent/trigger-contract": "*",
+    "hono": "^4.13.14",
+    "slack-cloudflare-workers": "^1.3.10"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260730.0"
+  }
+}

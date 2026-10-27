@@ -5,9 +5,9 @@ import { PiHarness } from "agents/harness/pi";
 import { Lifecycle } from "agents/lifecycle";
 import { sessionStream } from "./stream";
 import type { Env } from "./env";
-import type { Principal } from "@remote-agent/adapter-contract";
+import type { Principal } from "@remote-agent/agent-contract";
 import { executionGrant } from "./execution";
-import { installTools } from "./plugins";
+import { installTools } from "./tools";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import {
   LIMITS,
@@ -15,7 +15,7 @@ import {
   type SubmitInput,
   type SubmitReceipt,
   type OperationStatus,
-} from "@remote-agent/adapter-contract";
+} from "@remote-agent/agent-contract";
 
 export class SessionAgent extends DurableObject<Env> {
   private readonly connections = new Set<WebSocket>();

@@ -267,7 +267,7 @@ test(
           );
           assert.deepEqual(
             await (
-              await call("/adapters/webhook", "POST", {
+              await call("/triggers/webhook", "POST", {
                 sessionId,
                 operationId: "legacy-op",
                 input: "Must not replace history",

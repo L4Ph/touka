@@ -6,8 +6,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
-import { create as createDiscord } from "../../packages/adapter-discord/src/index";
-import { adapterDependencies } from "../src/adapter";
+import { create as createDiscord } from "../../packages/trigger-discord/src/index";
+import { triggerDependencies } from "../src/trigger";
 
 const app = "111111111111111111";
 const guild = "222222222222222222";
@@ -107,8 +107,8 @@ test(
                 if (new URL(request.url).pathname !== '/test/accept')
                   return core.fetch(request, env, ctx);
                 const input = await request.json();
-                return Response.json(await env.ADAPTER_JOBS
-                  .getByName(input.adapter + ':' + input.input.sessionId).accept(input));
+                return Response.json(await env.TRIGGER_JOBS
+                  .getByName(input.trigger + ':' + input.input.sessionId).accept(input));
               }
             };
           `,
@@ -122,7 +122,7 @@ test(
       compatibilityFlags: ["nodejs_compat"],
       durableObjects: {
         SESSIONS: { className: "SessionAgent", useSQLite: true },
-        ADAPTER_JOBS: { className: "AdapterJobs", useSQLite: true },
+        TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
         SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
       },
       durableObjectsPersist: state,
@@ -184,7 +184,7 @@ test(
       const raw = settings.raw ?? JSON.stringify(body);
       const timestamp = settings.timestamp ?? String(Math.floor(Date.now() / 1000));
       const signature = sign(null, Buffer.from(timestamp + raw), keys.privateKey).toString("hex");
-      return fetch(new URL("/adapters/discord", url), {
+      return fetch(new URL("/triggers/discord", url), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -197,7 +197,7 @@ test(
     };
     const status = async (id: string, conversation = channel) => {
       const response = await fetch(
-        new URL(`/adapters/discord/jobs/${guild}/${conversation}/${id}`, url),
+        new URL(`/triggers/discord/jobs/${guild}/${conversation}/${id}`, url),
         { headers: { authorization: "Bearer operator-secret" } },
       );
       assert.equal(response.status, 200);
@@ -246,10 +246,10 @@ test(
       assert.equal(list.status, 200);
       assert.ok(
         JSON.stringify(await list.json()).includes(session),
-        "adapter conversation must be team-discoverable",
+        "trigger conversation must be team-discoverable",
       );
       assert.equal(
-        (await fetch(new URL(`/adapters/discord/jobs/${guild}/${channel}/${input.id}`, url)))
+        (await fetch(new URL(`/triggers/discord/jobs/${guild}/${channel}/${input.id}`, url)))
           .status,
         401,
       );
@@ -386,8 +386,8 @@ test(
       let clock = Date.now();
       const clockMock = t.mock.method(Date, "now", () => clock);
       try {
-        const adapter = createDiscord({
-          ...adapterDependencies,
+        const trigger = createDiscord({
+          ...triggerDependencies,
           execute: async (_env, request) => {
             const response = await runtime.dispatchFetch("https://core/test/accept", {
               method: "POST",
@@ -395,7 +395,7 @@ test(
             });
             assert.equal(response.status, 200);
             const receipt = (await response.json()) as Awaited<
-              ReturnType<typeof adapterDependencies.execute>
+              ReturnType<typeof triggerDependencies.execute>
             >;
             clock += 1500;
             return receipt;
@@ -406,8 +406,8 @@ test(
           aged.id = (((BigInt(clock - age) - 1420070400000n) << 22n) + sequence++).toString();
           const raw = JSON.stringify(aged);
           const timestamp = String(Math.floor(clock / 1000));
-          const response = await adapter.request(
-            "https://adapter/",
+          const response = await trigger.request(
+            "https://trigger/",
             {
               method: "POST",
               headers: {

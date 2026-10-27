@@ -374,7 +374,7 @@ test(
       const complete = async (sessionId: string) => {
         assert.equal(
           (
-            await call("/adapters/webhook", "POST", {
+            await call("/triggers/webhook", "POST", {
               sessionId,
               operationId: "reply",
               input: "hello",
@@ -478,7 +478,7 @@ test(
         });
       assert.equal(
         (
-          await call("/adapters/webhook", {
+          await call("/triggers/webhook", {
             sessionId: "bytes",
             operationId: "reply",
             input: "hello",

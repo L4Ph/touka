@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env";
-import { validId } from "@remote-agent/adapter-contract";
+import { validId } from "@remote-agent/agent-contract";
 
 // One team-wide index, not a second conversation store. IDs are immutable and cursors lexical.
 export class SessionDirectory extends DurableObject<Env> {

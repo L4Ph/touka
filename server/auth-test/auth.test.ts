@@ -139,14 +139,14 @@ test(
           durableObjects: {
             SESSIONS: { className: "SessionAgent", useSQLite: true },
             SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
-            ADAPTER_JOBS: { className: "AdapterJobs", useSQLite: true },
+            TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
           },
           bindings: {
             TEAM_AUTH: JSON.stringify([
               {
                 id: "machine",
                 token,
-                sessions: ["adapter-thread", "legacy-thread"],
+                sessions: ["external-thread", "legacy-thread"],
                 resources: [],
               },
             ]),
@@ -288,19 +288,19 @@ test(
       until(
         async () => {
           const response = await web(
-            `/api/agent/sessions/adapter-thread/operations/${operationId}`,
-            adapterViewer,
+            `/api/agent/sessions/external-thread/operations/${operationId}`,
+            triggerViewer,
           );
           assert.equal(response.status, 200);
           return (await response.json()) as { status: string };
         },
         (operation) => operation.status === "done",
-        `Adapter operation ${operationId} must complete`,
+        `Trigger operation ${operationId} must complete`,
       );
-    let adapterViewer = "";
-    const continueAdapter = async (operationId: string) => {
+    let triggerViewer = "";
+    const continueTrigger = async (operationId: string) => {
       const before = await (
-        await web("/api/agent/sessions/adapter-thread/messages", adapterViewer)
+        await web("/api/agent/sessions/external-thread/messages", triggerViewer)
       ).text();
       const deniedTools = (transcript: string) =>
         (JSON.parse(transcript) as { messages: { kind: string }[] }).messages.filter(
@@ -311,28 +311,28 @@ test(
       const requestsBefore = githubRequests;
       assert.equal(
         (
-          await web("/api/agent/sessions/adapter-thread/inputs", adapterViewer, "POST", {
+          await web("/api/agent/sessions/external-thread/inputs", triggerViewer, "POST", {
             operationId,
-            input: `Continue adapter ${operationId}`,
+            input: `Continue trigger ${operationId}`,
           })
         ).status,
         202,
       );
       await completed(operationId);
       const history = await (
-        await web("/api/agent/sessions/adapter-thread/messages", adapterViewer)
+        await web("/api/agent/sessions/external-thread/messages", triggerViewer)
       ).text();
-      assert.match(history, new RegExp(`Continue adapter ${operationId}`));
+      assert.match(history, new RegExp(`Continue trigger ${operationId}`));
       assert.equal(
         deniedTools(history),
         deniedTools(before) + 2,
-        "Both read and write tools must durably deny the adapter's empty grant on each Web continuation",
+        "Both read and write tools must durably deny the trigger's empty grant on each Web continuation",
       );
       assert.doesNotMatch(history, /Authorized shared repository content/);
       assert.equal(
         githubRequests,
         requestsBefore,
-        "Denied adapter tools must not request GitHub tokens or repository data",
+        "Denied trigger tools must not request GitHub tokens or repository data",
       );
       return history;
     };
@@ -376,7 +376,7 @@ test(
       const anonymous = await web("/api/agent/sessions");
       assert.equal(anonymous.status, 401, await anonymous.text());
       const anonSocket = await runtime.dispatchFetch(
-        `${origin}/api/agent/sessions/adapter-thread/events`,
+        `${origin}/api/agent/sessions/external-thread/events`,
         {
           headers: { Upgrade: "websocket", Origin: origin },
         },
@@ -429,37 +429,37 @@ test(
       };
       assert.equal(
         (
-          await core.fetch(`${origin}/adapters/webhook`, {
+          await core.fetch(`${origin}/triggers/webhook`, {
             method: "POST",
             headers: machineHeaders,
             body: JSON.stringify({
-              sessionId: "adapter-thread",
-              operationId: "adapter-op",
-              input: "Adapter message",
+              sessionId: "external-thread",
+              operationId: "trigger-op",
+              input: "Trigger message",
             }),
           })
         ).status,
         202,
       );
-      adapterViewer = alice;
-      await completed("adapter-op");
-      const adapterHistory = await continueAdapter("continue-adapter");
-      // If web continuation replaces the durable adapter grant, this original-grant retry fails.
+      triggerViewer = alice;
+      await completed("trigger-op");
+      const triggerHistory = await continueTrigger("continue-trigger");
+      // If web continuation replaces the durable trigger grant, this original-grant retry fails.
       assert.equal(
         (
-          await core.fetch(`${origin}/adapters/webhook`, {
+          await core.fetch(`${origin}/triggers/webhook`, {
             method: "POST",
             headers: machineHeaders,
             body: JSON.stringify({
-              sessionId: "adapter-thread",
-              operationId: "adapter-op",
-              input: "Adapter message",
+              sessionId: "external-thread",
+              operationId: "trigger-op",
+              input: "Trigger message",
             }),
           })
         ).status,
         202,
       );
-      // This adapter ID is absent from TEAM_AUTH and SESSION_INDEX_SEEDS: only submit can index it.
+      // This trigger ID is absent from TEAM_AUTH and SESSION_INDEX_SEEDS: only submit can index it.
       const slackBody = JSON.stringify({
         type: "event_callback",
         team_id: "T_AUTH",
@@ -476,7 +476,7 @@ test(
       const slackSignature = `v0=${createHmac("sha256", slackSecret)
         .update(`v0:${timestamp}:${slackBody}`)
         .digest("hex")}`;
-      const slackResponse = await core.fetch(`${origin}/adapters/slack`, {
+      const slackResponse = await core.fetch(`${origin}/triggers/slack`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -499,7 +499,7 @@ test(
           (ids) => ids.includes(slackSession),
           "New signed Slack thread must be discoverable without allowlist/seed backfill",
         );
-        assert.deepEqual(discovered, ["adapter-thread", "legacy-thread", slackSession]);
+        assert.deepEqual(discovered, ["external-thread", "legacy-thread", slackSession]);
       }
       const list = await web("/api/agent/sessions", bob);
       assert.equal(list.headers.get("cache-control"), "no-store");
@@ -507,7 +507,7 @@ test(
         ((await list.json()) as { sessions: { sessionId: string }[] }).sessions.map(
           (s) => s.sessionId,
         ),
-        ["adapter-thread", "legacy-thread", slackSession],
+        ["external-thread", "legacy-thread", slackSession],
       );
       assert.equal(
         (await web("/api/agent/sessions", alice, "POST", { sessionId: "web-thread" })).status,
@@ -563,7 +563,7 @@ test(
       };
       assert.deepEqual(
         first.sessions.map((session) => session.sessionId),
-        ["adapter-thread", "legacy-thread"],
+        ["external-thread", "legacy-thread"],
       );
       assert.equal(first.next, "legacy-thread");
       const second = (await (
@@ -609,13 +609,13 @@ test(
         history,
       );
       const aliceReopened = await login("alice");
-      adapterViewer = bob;
+      triggerViewer = bob;
       assert.equal(
-        await (await web("/api/agent/sessions/adapter-thread/messages", bob)).text(),
-        adapterHistory,
-        "Adapter tool denials and shared continuation must persist across reopen",
+        await (await web("/api/agent/sessions/external-thread/messages", bob)).text(),
+        triggerHistory,
+        "Trigger tool denials and shared continuation must persist across reopen",
       );
-      await continueAdapter("continue-adapter-reopened");
+      await continueTrigger("continue-trigger-reopened");
       for (const member of [aliceReopened, bob]) {
         const reopened = await web("/api/agent/sessions", member);
         assert.equal(reopened.status, 200);
@@ -623,7 +623,7 @@ test(
           ((await reopened.json()) as { sessions: { sessionId: string }[] }).sessions.map(
             (session) => session.sessionId,
           ),
-          ["adapter-thread", "legacy-thread", slackSession, "web-thread"],
+          ["external-thread", "legacy-thread", slackSession, "web-thread"],
         );
         assert.match(
           await (await web(`/api/agent/sessions/${slackSession}/messages`, member)).text(),

@@ -1,0 +1,12 @@
+{
+  "name": "@remote-agent/connector-slack",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "slack-web-api-client": "^1.1.12"
+  }
+}

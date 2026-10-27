@@ -2,24 +2,31 @@
 
 Terminology for a general-purpose agent with multiple entry points.
 
-**Mandarin**:
-The product and general-purpose agent with team-shared conversations, distinct from internal package IDs and Cloudflare bindings.
-
 ## Language
+
+**Mandarin**:
+The name of this product and its general-purpose agent, with team-shared conversations.
 
 **Agent Core**:
 The owner of a conversation and its execution. It does not depend on the service that initiated the work.
 _Avoid_: Slack bot when referring to the core.
 
-**Adapter**:
-A connection that converts external service requests into agent input and routes results back to their origin.
-_Avoid_: Agent when referring to a connection module.
+**Connector**:
+A connection that manages authentication, authorization, and external service reads and writes. It can be used independently of the conversation's entry point.
+_Avoid_: Trigger when referring to service access.
+
+**Trigger**:
+An entry point that receives an external Event, submits input to a conversation, and routes results back. Invocation does not automatically grant Connector permissions.
+_Avoid_: Connector for an entry point; Adapter as a product term.
+
+**Event**:
+Data describing an external occurrence, not the executable entry point itself.
 
 **Session**:
-One continuing conversation, associated with an external thread or created directly from the Web UI.
+One continuing conversation, associated with an external thread or created directly from the Web. Viewers do not receive separate copies.
 
 **Operation**:
 An accepted input and its execution. Retries identify the same operation.
 
 **Tool**:
-An operation the agent can perform only within explicitly granted authority, distinct from an Adapter that receives service events.
+An operation explicitly exposed to the agent, including Connector operations and isolated execution, usable only within granted permissions.
