@@ -1,6 +1,6 @@
-# Remote Agent
+# Mandarin
 
-Independent root Void React Pages SSR and server Pi Durable Workers. M0, the Webhook pilot, and session controls are implemented; event delivery/integrations follow later. Unimplemented routes return 404, not fabricated success.
+A team-shared general-purpose agent with an independent Void React Pages SSR UI at the root and a Pi Durable Worker in `server/`. Keep existing internal package IDs and binding names.
 
 ## Install / verify
 
@@ -17,11 +17,19 @@ Preserve Void's default Vite+ toolchain. After the official 1.4.0 migration, 37 
 
 ## Better Auth / shared team chats
 
-`verify:auth` uses real Void Better Auth/D1/core DO/HTTP/WS. The independent root Worker supplies auth, the cookie-protected `/api/agent/*` proxy, and typed web-client contract. The starter UI remains unchanged for the web-client unit.
+`npm run verify:auth` exercises real Void Better Auth, D1, core DOs, HTTP, and WebSockets. The independent root Worker provides `void/client` auth, the cookie-authenticated `/api/agent/*` proxy, and the typed client in `shared/web-client.ts`. Mandarin's Void React Pages SSR/Vite+ UI uses that contract.
 
 Configure exact verified emails in the comma-separated `TEAM_EMAILS`, `BETTER_AUTH_SECRET`, and OAuth provider credentials on the Web Worker. GitHub is the default in `void.config.ts`, separate from the bot App. Password signup is disabled; missing configuration denies access. `AGENT_CORE` targets the core's named `WebGateway` entry point. All members can view, continue, stop, and change models on the same Session DO without expanding existing tool grants.
 
 **Existing data:** Machine allowlist IDs are backfilled automatically. Supply older adapter thread IDs absent from those lists through `SESSION_INDEX_SEEDS`; DOs cannot be enumerated. New Web and adapter sessions register idempotently in the durable directory. Auth SQL is in `db/migrations/`. See [shared web authentication](docs/shared-web-auth.md) for cookies, CSRF, revocation, pagination, configuration, and limitations. Live OAuth/LLM connectivity and deployment are unverified.
+
+## Mandarin web UI
+
+`npm run verify:web` builds both Workers and checks UI types, stream reducer behavior, and the real SSR/Better Auth/D1/core DO/HTTP/WS app in headless Chrome. Local Google Chrome is required: Playwright uses `channel: chrome` and `headless: true`. Temporary runtimes are disposed. Only external OAuth and LLM boundaries are faked; this is not live-service evidence.
+
+The UI loads every page of the team directory and can select and continue adapter-created Session DOs. It supports creation, history, streaming text/tool/run state, stop, parked-work retry, model selection, and fresh snapshots after reconnect. Retry an uncertain send with the same operation ID. Pending input lives only in page memory and is lost on reload or tab closure; inspect shared history before resending. Stop and model changes affect all viewers. Content is rendered as text, not executed as HTML or Markdown.
+
+Use the `AGENT_CORE` service binding for separate Web/core origins. The browser connects only to its Web origin with cookies; it cannot configure core URLs, bearer tokens, or keys. See the setup above and `docs/shared-web-auth.md` for authentication and legacy index migration. New conversations use Mandarin's English system identity; existing instructions are not overwritten.
 
 ## Local Launch / Doctor / Drive / Cleanup
 
@@ -52,7 +60,7 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 
 ## Verification evidence / limits
 
-Runtime tests cover real HTTP, DO SQLite, Pi initialization, health, auth/session/upgrade rejection, oversized bodies, and invalid/duplicate auth configuration. Plugin fixtures build real registration code in Vite+ and test routes, tools, context, and missing namespaces. Wrong-glob and empty-Pi mutations fail and were restored. Successful WS/events are not implemented yet. Isolated/reordered/repeated tests and Launch/Doctor/Drive/Cleanup passed. The spine does not call models; the pilot uses an external model fake. No production service credentials or Git remote were available.
+`server/test/runtime.test.ts` uses real HTTP, DO SQLite, and PiHarness initialization. It covers health, missing/invalid tokens, denied sessions and upgrades, large bodies, and malformed or duplicate-member auth configuration. `plugins.test.ts` builds production registration code with isolated directory-owned modules and checks namespaces, execution, and context. Changing the tool glob or replacing Pi initialization with an empty response makes the smoke fail; both mutations were restored. WebSocket success is covered separately by stream/Web verification. Tests were repeated, isolated, and reordered. Launch/Doctor/Drive/Cleanup also passed, including PID removal. The spine smoke does not call a model; the pilot uses a deterministic external model fake. Live Slack/GitHub/Cloudflare credentials and a Git remote were unavailable.
 
 ## Webhook pilot / verification example
 

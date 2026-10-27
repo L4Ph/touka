@@ -2,6 +2,7 @@
 import { defineConfig } from "void/config";
 
 export default defineConfig({
+  head: { title: "Mandarin", htmlAttrs: { lang: "en" } },
   auth: { providers: ["github"] },
   cloudflare: {
     services: [{ binding: "AGENT_CORE", service: "remote-agent-server", entrypoint: "WebGateway" }],

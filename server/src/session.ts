@@ -76,7 +76,7 @@ export class SessionAgent extends DurableObject<Env> {
           return execution()?.principal ?? { id: "unbound", sessions: [], resources: [] };
         },
       });
-      return Harness.open(
+      const pi = await Harness.open(
         storage,
         {
           models,
@@ -89,6 +89,10 @@ export class SessionAgent extends DurableObject<Env> {
         },
         context,
       );
+      await pi.root(context, {
+        agent: { instructions: "You are Mandarin, a general-purpose assistant. Help the team with their tasks." },
+      });
+      return pi;
     },
     defaults:
       this.env.MODEL_PROVIDER && this.env.MODEL_ID

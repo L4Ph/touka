@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp -C . dev",
+    "verify:web": "npm run build && npm run build:server && npx tsc --noEmit && cd server && node --import tsx --test web-test/*.test.ts",
     "test": "npm test --workspace server",
     "verify:discord": "npm run typecheck --workspace @remote-agent/adapter-discord && npm run test --workspace @remote-agent/adapter-discord && npm run build:server && cd server && node --import tsx --test test/discord.test.ts",
     "verify:auth": "npm run build && npm run build:server && cd server && node --import tsx --test auth-test/auth.test.ts",
@@ -30,6 +31,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@void/react": "1.3.0",

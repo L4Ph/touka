@@ -1,4 +1,4 @@
-# Remote Agent initial release
+# Mandarin initial release
 
 ## Completion criteria
 

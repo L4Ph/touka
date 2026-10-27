@@ -1,6 +1,9 @@
-# Remote Agent
+# Mandarin
 
 Terminology for a general-purpose agent with multiple entry points.
+
+**Mandarin**:
+The product and general-purpose agent with team-shared conversations, distinct from internal package IDs and Cloudflare bindings.
 
 ## Language
 
