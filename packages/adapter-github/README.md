@@ -24,8 +24,23 @@ this adapter. Configure server-only bindings:
 - The shared `SESSIONS` and `ADAPTER_JOBS` bindings and operator model configuration
   must exist; failed durable acceptance returns 503, never a successful ACK.
 
-Set an authenticated-ingress rate limit at the server edge before production use;
-this package has no global/per-actor rate quota. Raw request bodies are capped at
+Authenticated mention ingress is limited automatically before durable execution:
+**20 requests per allowed actor and 100 total per 60-second fixed window**, shared
+across all repositories, issue/PR numbers and delivery IDs in one adapter app.
+Actor logins are case-insensitive. The window starts with the first eligible
+request. Excess requests return HTTP **429**, `Retry-After` in whole seconds and
+`{error:"rate_limited",retryable:true}` without invoking durable execution. Retry
+after that delay using the same delivery ID; GitHub redelivery may require an
+operator or sender to initiate it. Invalid signatures, forbidden requests and
+ignored events do not consume quota. Eligible retries and failed durable accepts
+do consume quota; rejecting excess requests does not extend the window.
+
+No extra binding or operator setting is needed. Counters are in-memory per
+app/Worker isolate, not a durable or fleet-wide billing ceiling: eviction/restart
+resets them, and multiple isolates each have their own budget. Use shared quota
+storage or an additional managed edge policy if a deployment-wide ceiling is
+required. The aggregate cap also bounds the actor counter map to 100 entries;
+all counters clear at the next window. Raw request bodies are capped at
 32 KiB, comment text at 16,000 characters, actors at 1,000. The shared outbox caps
 retained jobs at 100 per session and Pi bounds pending work. Outbound 429, secondary
 403 rate limits and 5xx use durable retries; Retry-After (seconds/date) or reset
@@ -87,6 +102,19 @@ The package pins the same Miniflare major as the server's runtime tests (the roo
 Void toolchain also installs an incompatible beta major). No live GitHub App,
 production LLM, deployment or external credentials were used. Local restart tests
 prove persisted retry scheduling, not exactly-once delivery at GitHub.
+
+`src/ingress-rate.test.ts` builds the composed server and drives its real HTTP
+routes and SQLite Durable Objects in Miniflare with real HMAC signatures. Only
+the clock and external model/GitHub APIs are faked. It verifies durable records
+for concurrent within-limit requests, cross-session/case-insensitive actor
+rejection without jobs or sessions,
+invalid signatures not spending quota, aggregate limits, Retry-After and exact
+window recovery. It does not claim distributed/durable quota enforcement.
+Run it directly from `server/` with:
+
+```sh
+node --import tsx --test ../packages/adapter-github/src/ingress-rate.test.ts
+```
 
 Protocol references:
 - https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries

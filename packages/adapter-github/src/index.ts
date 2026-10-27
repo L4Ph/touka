@@ -26,6 +26,10 @@ async function sessionId(repo: string, number: number) {
 
 export function create({ execute, authenticate, status, github }: AdapterDependencies): Hono<AdapterAppEnv> {
   const app = new Hono<AdapterAppEnv>();
+  // shortcut: quota is per app/isolate and resets on eviction; use shared storage for a fleet-wide quota.
+  let windowEnd = 0;
+  let ingressCount = 0;
+  const actorCounts = new Map<string, number>();
   app.get("/jobs/:owner/:repo/:number/:operation", authenticate, async (c) => {
     const { owner, repo, number, operation } = c.req.param();
     if (!/^[1-9]\d{0,14}$/.test(number) || !positive(Number(number)) || !validOperation(operation))
@@ -105,6 +109,21 @@ export function create({ execute, authenticate, status, github }: AdapterDepende
     if (!mention.test(comment.body)) return c.json({ ignored: true });
     const input = comment.body.replace(mention, "$1").replace(/\r\n?/g, "\n").trim();
     if (!input) return c.json({ ignored: true });
+    const now = Date.now();
+    if (now >= windowEnd) {
+      windowEnd = now + 60000;
+      ingressCount = 0;
+      actorCounts.clear();
+    }
+    const actor = sender.login.toLowerCase();
+    const actorCount = actorCounts.get(actor) ?? 0;
+    if (actorCount >= 20 || ingressCount >= 100) {
+      c.header("Retry-After", String(Math.max(1, Math.ceil((windowEnd - now) / 1000))));
+      return c.json({ error: "rate_limited", retryable: true }, 429);
+    }
+    // Reserve synchronously before any await, including session hashing and durable acceptance.
+    ingressCount++;
+    actorCounts.set(actor, actorCount + 1);
     const session = await sessionId(repo, number);
     try {
       const receipt = await execute(c.env, {
