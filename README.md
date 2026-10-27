@@ -1,6 +1,6 @@
 # Remote Agent
 
-Independent root Void React Pages SSR and server Pi Durable Workers. Only the M0 spine is implemented; model execution, Webhooks, session controls, events, and integrations follow later. Missing routes return 404, not fabricated success.
+Independent root Void React Pages SSR and server Pi Durable Workers. M0 and the Webhook pilot are implemented; session controls/events/integrations follow later. Missing routes return 404, not fabricated success.
 
 ## Install / verify
 
@@ -30,7 +30,7 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 
 ## Shared seams / ownership
 
-- `shared/contracts.ts`: session/operation/input only, no source labels or origin prompt. Requests: 32 KiB; input: 16k characters; IDs: 128 characters; pending: 16; tools: 32. The acceptance unit will enforce pending limits.
+- `shared/contracts.ts`: session/operation/input only, with no source union or origin prompt. Requests: 32 KiB; input: 16k characters; IDs: 128 characters; pending: 16 including running work; tools: 32.
 - `server/src/session.ts`: real PiHarness/Lifecycle/onWake/SQLite/Pi ~1.4.0 with explicit models and no fallback. State inspection does not prove model execution. Only server OpenAI/Anthropic keys are supported; do not substitute another provider for missing config.
 - `server/src/adapters/<name>/index.ts`: create() returns Hono<AppEnv> and mounts at /adapters/<name>. Each adapter owns signatures, policy, bodies, dedupe, and replies. These are not bearer routes; each must authenticate fail-closed.
 - `server/src/tools/<name>/index.ts`: export `create(context: ToolContext): Extension`; the extension name must match its directory. Duplicate extension/tool names or more than 32 tools fail startup, verified against the real registry. Tools are independent of ingress and enforce authorization, output/time limits, and replay classification. Extend Env through module-owned TypeScript declaration merging; shared bindings are wired sequentially during integration.
@@ -40,7 +40,28 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 
 ## Verification evidence / limits
 
-Real HTTP/DO SQLite/Pi tests cover health, missing/invalid tokens, denied sessions/upgrades, large bodies, and malformed/mixed/duplicate auth. Isolated Vite-built registry fixtures test module namespaces, tools, and context. Wrong-glob and empty-Pi mutations failed and were restored; WS/event success is not yet implemented. Isolated/reordered/repeated tests and operational lifecycle passed. Neither fake nor live models were called, so model responses are not proven. No production credentials or Git remote were available.
+Runtime tests cover real HTTP, DO SQLite, Pi initialization, health, auth/session/upgrade rejection, oversized bodies, and invalid/duplicate auth configuration. Plugin fixtures build real registration code in Vite and test routes, tools, context, and missing namespaces. Wrong-glob and empty-Pi mutations fail and were restored. Successful WS/events are not implemented yet. Isolated/reordered/repeated tests and Launch/Doctor/Drive/Cleanup passed. The spine does not call models; the pilot uses an external model fake. No production service credentials or Git remote were available.
+
+## Webhook pilot / verification example
+
+```sh
+npm run verify:pilot
+npm run typecheck
+# Against a running Worker, AGENT_TOKEN must authorize the target session.
+curl -sS http://127.0.0.1:8787/adapters/webhook \
+  -H "Authorization: Bearer $AGENT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"sessionId":"session-id","operationId":"stable-delivery-id","input":"Hello"}'
+curl -sS http://127.0.0.1:8787/api/sessions/session-id/operations/stable-delivery-id \
+  -H "Authorization: Bearer $AGENT_TOKEN"
+```
+
+`POST /adapters/webhook` accepts only `sessionId / operationId / input`, normalizes newlines to LF, and trims surrounding whitespace. TEAM_AUTH authorizes the session. After durable Pi SQLite acceptance it returns 202 with `{sessionId, operationId, accepted}` without waiting for the model. Retrying an ID preserves the first input and returns `accepted:false`, even when the inbox is full; new inputs then return 429. IDs use letters, digits, `_`, or `-`, up to 128 characters. Oversized bodies return 413, invalid input 400, unauthorized sessions 403, and unknown operations 404.
+
+Status uses real Pi pending/settled operations: queued/running/parked/done/unanswered, including text/reason. Missing models/auth never become success; parked means restart exhaustion. Retry/stop/model APIs await session-control. Only explicit Anthropic/OpenAI providers are registered; no fallback.
+
+`server/test/pilot.test.ts` is the vertical-slice example. It runs the built Worker on real Miniflare/workerd, SQLite, and HTTP, faking only external Anthropic SSE. Gated streams prove acceptance, running/queued states, limits, and concurrent dedupe. Reopening the same SQLite verifies recovery and retained results; repeated mid-run restarts exercise Pi's real parked-task guard. Other cases cover missing-model unanswered results and fail-closed auth. No fixed sleeps or test-only production hooks are needed. Rejected requests never reach the model, and model input contains no origin message.
+
+Limits: operation expiry and history deletion are not implemented. Do not reuse accepted IDs in a session. A DO restart may repeat model requests: input dedupe is not exactly-once billing or side-effect delivery. Live LLM, Slack/GitHub, and reply delivery remain unverified.
 
 ## Dependency audit
 

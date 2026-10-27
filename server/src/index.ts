@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { LIMITS } from '../../shared/contracts';
+import { LIMITS, validId } from '../../shared/contracts';
 import type { AppEnv } from './env';
 import { teamAuth, sessionAccess } from './auth';
 import { mountAdapters } from './plugins';
@@ -15,6 +15,12 @@ app.use('/api/*', teamAuth);
 app.use('/api/sessions/:sessionId/*', sessionAccess);
 const control = app.get('/api/sessions/:sessionId/runtime', async (c) => {
   const result = await c.env.SESSIONS.getByName(c.req.param('sessionId')).inspect();
+  return c.json(result);
+}).get('/api/sessions/:sessionId/operations/:operationId', async (c) => {
+  const { sessionId, operationId } = c.req.param();
+  if (!validId(operationId)) return c.json({ error: { code: 'invalid_operation' } }, 400);
+  const result = await c.env.SESSIONS.getByName(sessionId).operation(sessionId, operationId);
+  if (!result) return c.json({ error: { code: 'operation_not_found' } }, 404);
   return c.json(result);
 });
 mountAdapters(app);

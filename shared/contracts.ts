@@ -4,6 +4,18 @@ export interface SubmitInput {
   operationId: string;
   input: string;
 }
+export interface SubmitReceipt {
+  sessionId: string;
+  operationId: string;
+  accepted: boolean;
+}
+export interface OperationStatus {
+  sessionId: string;
+  operationId: string;
+  status: 'queued' | 'running' | 'done' | 'unanswered' | 'parked';
+  text?: string;
+  reason?: string;
+}
 export interface Principal {
   id: string;
   sessions: readonly string[];

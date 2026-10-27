@@ -1,13 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Miniflare } from 'miniflare';
+import { globSync } from 'node:fs';
 
 const token = 'local-runtime-test-token-not-a-secret-0001';
 const member = { id: 'tester', token, sessions: ['allowed'], resources: [] };
 
 test('local HTTP opens real Pi/Lifecycle SQLite, enforces auth, session ACL and payload bounds', async () => {
   const worker = {
-    modules: [{ type: 'ESModule' as const, path: 'dist/remote_agent_server/index.js' }],
+    modules: ['dist/remote_agent_server/index.js', ...globSync('dist/remote_agent_server/assets/*.js')]
+      .map((path) => ({ type: 'ESModule' as const, path })),
     compatibilityDate: '2026-08-01', compatibilityFlags: ['nodejs_compat'],
     durableObjects: { SESSIONS: { className: 'SessionAgent', useSQLite: true } },
     bindings: { TEAM_AUTH: JSON.stringify([member]) },

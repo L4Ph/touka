@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { Miniflare } from 'miniflare';
 import { readFile, writeFile } from 'node:fs/promises';
-import { unlinkSync } from 'node:fs';
+import { globSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const command = process.argv[2];
@@ -11,7 +11,8 @@ if (command === 'launch') {
   await writeFile(pidFile, String(process.pid), { flag: 'wx' });
   const runtime = new Miniflare({
     host: '127.0.0.1', port: 8787,
-    modules: [{ type: 'ESModule', path: 'dist/remote_agent_server/index.js' }],
+    modules: ['dist/remote_agent_server/index.js', ...globSync('dist/remote_agent_server/assets/*.js')]
+      .map((path) => ({ type: 'ESModule', path })),
     compatibilityDate: '2026-08-01', compatibilityFlags: ['nodejs_compat'],
     durableObjects: { SESSIONS: { className: 'SessionAgent', useSQLite: true } },
     durableObjectsPersist: '.runtime/state',

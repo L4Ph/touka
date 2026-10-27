@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "cd .. && oxlint server/src server/test shared",
     "test": "node scripts/test.mjs",
+    "verify:pilot": "npm run build && node --import tsx --test test/contracts.test.ts test/pilot.test.ts",
     "verify": "npm run typecheck && npm run lint && npm run build && npm test",
     "launch": "node scripts/runtime.mjs launch",
     "doctor": "node scripts/runtime.mjs doctor",
