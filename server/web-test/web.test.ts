@@ -1,204 +1,76 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { globSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { generateKeyPairSync } from "node:crypto";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
 import { chromium, expect } from "@playwright/test";
 
-const modules = (directory: string) =>
-  [`${directory}/index.js`, ...globSync(`${directory}/assets/*.js`)].map((path) => ({
-    type: "ESModule" as const,
-    path,
-  }));
-const model = "claude-sonnet-4-5";
-function reply(tool = false) {
-  const events = [
-    {
-      type: "message_start",
-      message: {
-        id: "web",
-        type: "message",
-        role: "assistant",
-        model,
-        content: [],
-        stop_reason: null,
-        stop_sequence: null,
-        usage: { input_tokens: 1, output_tokens: 0 },
-      },
-    },
-    {
-      type: "content_block_start",
-      index: 0,
-      content_block: tool
-        ? { type: "tool_use", id: "read", name: "github_read_file", input: {} }
-        : { type: "text", text: "" },
-    },
-    {
-      type: "content_block_delta",
-      index: 0,
-      delta: tool
-        ? {
-            type: "input_json_delta",
-            partial_json: JSON.stringify({ repo: "owner/repo", path: "README.md", ref: "main" }),
-          }
-        : { type: "text_delta", text: "Mandarin local response" },
-    },
-    { type: "content_block_stop", index: 0 },
-    {
-      type: "message_delta",
-      delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null },
-      usage: { output_tokens: 1 },
-    },
-    { type: "message_stop" },
-  ];
-  return events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join("");
-}
+import { reply, webRuntimeOptions } from "./fixtures";
 
 test(
   "SSR Mandarin chat uses team cookies, shared adapter threads, stable retries and fresh WS reconnect",
   { timeout: 60000 },
   async () => {
     const state = await mkdtemp(join(tmpdir(), "mandarin-web-"));
-    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     let modelCalls = 0;
     let modelGate: (() => void) | undefined;
     let toolGate: (() => void) | undefined;
     let mode: "text" | "partial" | "tool" | "hold" = "text";
-    const options: ConstructorParameters<typeof Miniflare>[0] = {
-      host: "localhost",
-      https: true,
-      durableObjectsPersist: join(state, "do"),
-      d1Persist: join(state, "d1"),
-      workers: [
-        {
-          name: "web",
-          modulesRoot: resolve(".."),
-          modules: modules("../dist/ssr"),
-          compatibilityDate: "2026-08-01",
-          compatibilityFlags: ["nodejs_compat"],
-          assets: {
-            directory: "../dist/client",
-            binding: "ASSETS",
-            routerConfig: { has_user_worker: true, invoke_user_worker_ahead_of_assets: true },
+    const options = webRuntimeOptions(state, async (request: Request) => {
+      const url = new URL(request.url);
+      if (url.hostname === "api.github.com") {
+        if (url.pathname === "/app/installations/42/access_tokens")
+          return WorkerResponse.json({
+            token: "fake-installation",
+            expires_at: new Date(Date.now() + 3600000).toISOString(),
+          });
+        assert.equal(url.pathname, "/repos/owner/repo/contents/README.md");
+        await new Promise<void>((resolve) => {
+          toolGate = resolve;
+        });
+        return WorkerResponse.json({
+          type: "file",
+          content: btoa("Shared tool file"),
+          encoding: "base64",
+          sha: "a".repeat(40),
+        });
+      }
+      assert.equal(url.hostname, "api.anthropic.com");
+      const body = (await request.json()) as { system: { text: string }[] };
+      assert.match(JSON.stringify(body.system), /You are Mandarin/);
+      modelCalls++;
+      if (mode === "tool") {
+        mode = "text";
+        return new WorkerResponse(reply(true), {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      if (mode === "partial" || mode === "hold") {
+        const content = reply();
+        const split = content.indexOf("event: content_block_stop");
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(content.slice(0, split)));
+            modelGate = () => {
+              try {
+                controller.enqueue(new TextEncoder().encode(content.slice(split)));
+                controller.close();
+              } catch {
+                /* Runtime may already have cancelled the upstream stream. */
+              }
+            };
           },
-          d1Databases: { DB: "web-auth" },
-          bindings: {
-            BETTER_AUTH_SECRET: "web-test-auth-secret-at-least-thirty-two",
-            AUTH_GITHUB_CLIENT_ID: "fake-client",
-            AUTH_GITHUB_CLIENT_SECRET: "fake-secret",
-            TEAM_EMAILS: "alice@example.com,bob@example.com",
-          },
-          serviceBindings: { AGENT_CORE: { name: "core", entrypoint: "WebGateway" } },
-          outboundService: async (request: Request) => {
-            const url = new URL(request.url);
-            if (url.hostname === "github.com" && url.pathname === "/login/oauth/access_token")
-              return WorkerResponse.json({
-                access_token: new URLSearchParams(await request.text()).get("code"),
-                token_type: "bearer",
-                scope: "user:email",
-              });
-            assert.equal(url.hostname, "api.github.com");
-            const name = request.headers.get("authorization")!.replace(/^Bearer /i, "");
-            if (url.pathname === "/user")
-              return WorkerResponse.json({
-                id: name === "alice" ? 1 : 2,
-                login: name,
-                name,
-                email: `${name}@example.com`,
-              });
-            assert.equal(url.pathname, "/user/emails");
-            return WorkerResponse.json([
-              { email: `${name}@example.com`, primary: true, verified: true },
-            ]);
-          },
-        },
-        {
-          name: "core",
-          modules: modules("dist/remote_agent_server"),
-          compatibilityDate: "2026-08-01",
-          compatibilityFlags: ["nodejs_compat"],
-          durableObjects: {
-            SESSIONS: { className: "SessionAgent", useSQLite: true },
-            SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
-            ADAPTER_JOBS: { className: "AdapterJobs", useSQLite: true },
-          },
-          bindings: {
-            TEAM_AUTH: JSON.stringify([
-              {
-                id: "adapter",
-                token: "web-test-machine-token-at-least-32-characters",
-                sessions: ["discord_team_thread"],
-                resources: [],
-              },
-            ]),
-            MODEL_PROVIDER: "anthropic",
-            MODEL_ID: model,
-            ANTHROPIC_API_KEY: "fake-model-key",
-            OPENAI_API_KEY: "fake-second-provider-key",
-            WEB_RESOURCES: '["github:owner/repo:read"]',
-            GITHUB_APP_ID: "123",
-            GITHUB_APP_PRIVATE_KEY: privateKey.export({ type: "pkcs1", format: "pem" }).toString(),
-            GITHUB_REPOSITORIES: '{"owner/repo":42}',
-          },
-          outboundService: async (request: Request) => {
-            const url = new URL(request.url);
-            if (url.hostname === "api.github.com") {
-              if (url.pathname === "/app/installations/42/access_tokens")
-                return WorkerResponse.json({
-                  token: "fake-installation",
-                  expires_at: new Date(Date.now() + 3600000).toISOString(),
-                });
-              assert.equal(url.pathname, "/repos/owner/repo/contents/README.md");
-              await new Promise<void>((resolve) => {
-                toolGate = resolve;
-              });
-              return WorkerResponse.json({
-                type: "file",
-                content: btoa("Shared tool file"),
-                encoding: "base64",
-                sha: "a".repeat(40),
-              });
-            }
-            assert.equal(url.hostname, "api.anthropic.com");
-            const body = (await request.json()) as { system: { text: string }[] };
-            assert.match(JSON.stringify(body.system), /You are Mandarin/);
-            modelCalls++;
-            if (mode === "tool") {
-              mode = "text";
-              return new WorkerResponse(reply(true), {
-                headers: { "Content-Type": "text/event-stream" },
-              });
-            }
-            if (mode === "partial" || mode === "hold") {
-              const content = reply();
-              const split = content.indexOf("event: content_block_stop");
-              const stream = new ReadableStream<Uint8Array>({
-                start(controller) {
-                  controller.enqueue(new TextEncoder().encode(content.slice(0, split)));
-                  modelGate = () => {
-                    try {
-                      controller.enqueue(new TextEncoder().encode(content.slice(split)));
-                      controller.close();
-                    } catch {
-                      /* Runtime may already have cancelled the upstream stream. */
-                    }
-                  };
-                },
-              });
-              return new WorkerResponse(stream, {
-                headers: { "Content-Type": "text/event-stream" },
-              });
-            }
-            return new WorkerResponse(reply(), {
-              headers: { "Content-Type": "text/event-stream" },
-            });
-          },
-        },
-      ],
-    };
+        });
+        return new WorkerResponse(stream, {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return new WorkerResponse(reply(), {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    });
     let runtime = new Miniflare(options);
     const browser = await chromium.launch({
       channel: "chrome",
@@ -372,6 +244,10 @@ test(
       await alicePage.getByLabel("Message Mandarin", { exact: true }).fill("Retry exactly once");
       await alicePage.getByRole("button", { name: "Send message", exact: true }).click();
       await expect(alicePage.getByRole("alert")).toBeVisible();
+      await expect(alicePage.getByLabel("Message Mandarin", { exact: true })).toBeDisabled();
+      await expect(alicePage.getByLabel("Message Mandarin", { exact: true })).toHaveValue(
+        "Retry exactly once",
+      );
       await alicePage.getByRole("button", { name: "Retry same message", exact: true }).click();
       await expect(
         alicePage.getByRole("button", { name: "Send message", exact: true }),

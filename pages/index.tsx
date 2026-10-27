@@ -42,11 +42,24 @@ export default function HomePage() {
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState<{
-    session: string;
-    operationId: string;
-    input: string;
-  } | null>(null);
+  const [pendingBySession, setPendingBySession] = useState<
+    Record<
+      string,
+      {
+        session: string;
+        operationId: string;
+        input: string;
+      }
+    >
+  >({});
+  const pending = pendingBySession[selected];
+  function clearPending(session: string) {
+    setPendingBySession((items) => {
+      const remaining = { ...items };
+      delete remaining[session];
+      return remaining;
+    });
+  }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -395,18 +408,29 @@ export default function HomePage() {
                       pending?.session === selected
                         ? pending
                         : { session: selected, operationId: crypto.randomUUID(), input: draft };
-                    setPending(submission);
+                    setPendingBySession((items) => ({
+                      ...items,
+                      [submission.session]: submission,
+                    }));
                     void action(async () => {
-                      await checked(
-                        await route().inputs.$post(
-                          { param: { sessionId: submission.session } },
-                          jsonBody({
-                            operationId: submission.operationId,
-                            input: submission.input,
-                          }),
-                        ),
+                      const response = await route().inputs.$post(
+                        { param: { sessionId: submission.session } },
+                        jsonBody({
+                          operationId: submission.operationId,
+                          input: submission.input,
+                        }),
                       );
-                      setPending(null);
+                      // Only explicit pre-acceptance rejection releases the immutable retry payload.
+                      if (
+                        response.status === 400 &&
+                        ((await response.clone().json()) as { error?: { code?: string } }).error
+                          ?.code === "invalid_input"
+                      ) {
+                        clearPending(submission.session);
+                        setDraft(submission.input);
+                      }
+                      await checked(response);
+                      clearPending(submission.session);
                       setDraft("");
                     });
                   }}
