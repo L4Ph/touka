@@ -6,6 +6,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
+import { create as createDiscord } from "../../packages/adapter-discord/src/index";
+import { adapterDependencies } from "../src/adapter";
 
 const app = "111111111111111111";
 const guild = "222222222222222222";
@@ -75,10 +77,11 @@ async function until<T>(read: () => Promise<T>, match: (v: T) => boolean) {
 test(
   "Discord composition bounds acceptance before ACK, dedupes, isolates conversations and reopens delivery",
   { timeout: 40000 },
-  async () => {
+  async (t) => {
     const state = await mkdtemp(join(tmpdir(), "discord-runtime-"));
     let calls = 0;
     let replyCount = 0;
+    let originalReplyCount = 0;
     let replyAt = 0;
     let expired = false;
     let replyGate: Promise<void> | undefined;
@@ -92,9 +95,29 @@ test(
       name: "core",
       serviceBindings: { TEAM_VIEW: { name: "core", entrypoint: "WebGateway" } },
       modules: [
-        "dist/remote_agent_server/index.js",
-        ...globSync("dist/remote_agent_server/assets/*.js"),
-      ].map((path) => ({ type: "ESModule" as const, path })),
+        {
+          type: "ESModule" as const,
+          path: "discord-test-entry.js",
+          // Transport bridge to the real SQLite RPC; only the Node-side clock is controlled.
+          contents: `
+            import core from './dist/remote_agent_server/index.js';
+            export * from './dist/remote_agent_server/index.js';
+            export default {
+              async fetch(request, env, ctx) {
+                if (new URL(request.url).pathname !== '/test/accept')
+                  return core.fetch(request, env, ctx);
+                const input = await request.json();
+                return Response.json(await env.ADAPTER_JOBS
+                  .getByName(input.adapter + ':' + input.input.sessionId).accept(input));
+              }
+            };
+          `,
+        },
+        ...[
+          "dist/remote_agent_server/index.js",
+          ...globSync("dist/remote_agent_server/assets/*.js"),
+        ].map((path) => ({ type: "ESModule" as const, path })),
+      ],
       compatibilityDate: "2026-08-01",
       compatibilityFlags: ["nodejs_compat"],
       durableObjects: {
@@ -128,10 +151,11 @@ test(
           return new WorkerResponse(answer(), { headers: { "content-type": "text/event-stream" } });
         }
         assert.equal(url.hostname, "discord.com");
-        assert.equal(
-          url.pathname,
-          `/api/v10/webhooks/${app}/private-interaction-token/messages/@original`,
-        );
+        const token = url.pathname.includes("/original-interaction-token/")
+          ? "original-interaction-token"
+          : "private-interaction-token";
+        assert.equal(url.pathname, `/api/v10/webhooks/${app}/${token}/messages/@original`);
+        if (token === "original-interaction-token") originalReplyCount++;
         assert.equal(request.method, "PATCH");
         assert.deepEqual(await request.json(), {
           content: "Discord answer",
@@ -190,7 +214,7 @@ test(
         503,
       );
       assert.equal(calls, 0, "rejected inputs must not start model work");
-      const input = interaction();
+      const input = { ...interaction(), token: "original-interaction-token" };
       const accepted = await post(input);
       assert.equal(accepted.status, 200);
       assert.deepEqual(await accepted.json(), { type: 5, data: {} });
@@ -308,12 +332,112 @@ test(
         performance.now() - started < 3000,
         "initial response must meet Discord's deadline",
       );
+      const duplicateStarted = performance.now();
+      const duplicateResponse = await post(input);
+      assert.equal(
+        duplicateResponse.status,
+        503,
+        "old duplicate lookup cannot wait on a blocked alarm",
+      );
+      assert.deepEqual(await duplicateResponse.json(), { error: "discord_unavailable" });
+      assert.ok(
+        performance.now() - duplicateStarted < 3000,
+        "duplicate lookup has a request deadline",
+      );
+      const aged = interaction();
+      aged.id = ((BigInt(Date.now() - 2000) - 1420070400000n) << 22n).toString();
+      const agedStarted = performance.now();
+      const agedResponse = await post(aged);
+      assert.equal(
+        agedResponse.status,
+        503,
+        "ingress age reduces the budget for blocked acceptance",
+      );
+      assert.deepEqual(await agedResponse.json(), { error: "discord_unavailable" });
+      assert.ok(
+        performance.now() - agedStarted < 1000,
+        "two-second-old input has at most half a second left",
+      );
       replyGate = undefined;
       releaseReply?.();
       await until(
         () => status(blocking.id),
         (s) => s.state === "delivered",
       );
+      assert.equal(
+        (await post(input)).status,
+        200,
+        "known old duplicates can ACK once the gate opens",
+      );
+      assert.deepEqual(
+        await status(input.id),
+        delivered,
+        "duplicate acceptance must retain the terminal durable receipt and its two attempts",
+      );
+      // A later job in this conversation drains preceding alarm work without assuming timed-out RPCs commit.
+      const barrier = interaction();
+      assert.equal((await post(barrier)).status, 200);
+      await until(
+        () => status(barrier.id),
+        (s) => s.state === "delivered",
+      );
+      assert.equal(originalReplyCount, 2, "old duplicates must not repeat Discord delivery");
+
+      let clock = Date.now();
+      const clockMock = t.mock.method(Date, "now", () => clock);
+      try {
+        const adapter = createDiscord({
+          ...adapterDependencies,
+          execute: async (_env, request) => {
+            const response = await runtime.dispatchFetch("https://core/test/accept", {
+              method: "POST",
+              body: JSON.stringify(request),
+            });
+            assert.equal(response.status, 200);
+            const receipt = (await response.json()) as Awaited<
+              ReturnType<typeof adapterDependencies.execute>
+            >;
+            clock += 1500;
+            return receipt;
+          },
+        });
+        for (const age of [0, 2000]) {
+          const aged = interaction("777777777777777777");
+          aged.id = (((BigInt(clock - age) - 1420070400000n) << 22n) + sequence++).toString();
+          const raw = JSON.stringify(aged);
+          const timestamp = String(Math.floor(clock / 1000));
+          const response = await adapter.request(
+            "https://adapter/",
+            {
+              method: "POST",
+              headers: {
+                "x-signature-timestamp": timestamp,
+                "x-signature-ed25519": sign(
+                  null,
+                  Buffer.from(timestamp + raw),
+                  keys.privateKey,
+                ).toString("hex"),
+              },
+              body: raw,
+            },
+            options.bindings,
+          );
+          assert.equal(response.status, age === 0 ? 200 : 503);
+          assert.deepEqual(
+            await response.json(),
+            age === 0 ? { type: 5, data: {} } : { error: "ack_deadline" },
+            "only acceptance inside the original interaction budget can defer",
+          );
+          assert.ok(
+            ["queued", "waiting", "delivering", "delivered"].includes(
+              (await status(aged.id, aged.channel_id)).state,
+            ),
+            "even late acceptance has a real durable receipt; timeout does not cancel the RPC",
+          );
+        }
+      } finally {
+        clockMock.mock.restore();
+      }
       await runtime.dispose();
       runtime = new Miniflare({
         ...options,

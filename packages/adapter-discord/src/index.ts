@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { DiscordHono } from "discord-hono";
+import { remainingAckBudget } from "./ack-budget";
 import type {
   AdapterAppEnv,
   AdapterDependencies,
@@ -60,125 +61,145 @@ export function create({ execute, status }: AdapterDependencies): Hono<AdapterAp
   });
   app.post("/", async (c) => {
     const started = Date.now();
-    let guilds: Guild[];
-    try {
-      guilds = policy(c.env);
-    } catch {
-      return c.json({ error: "discord_unconfigured" }, 503);
-    }
-    const ts = c.req.header("x-signature-timestamp") ?? "";
-    if (
-      !/^\d{10,12}$/.test(ts) ||
-      Math.abs(Date.now() / 1000 - Number(ts)) > 300 ||
-      !/^[a-fA-F0-9]{128}$/.test(c.req.header("x-signature-ed25519") ?? "")
-    )
-      return c.json({ error: "invalid_signature" }, 401);
-    const reader = c.req.raw.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    if (reader)
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        size += value.length;
-        if (size > 32768) {
-          await reader.cancel();
-          return c.json({ error: "payload_too_large" }, 413);
-        }
-        chunks.push(value);
-      }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.length;
-    }
-    let raw: string;
-    try {
-      raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      JSON.parse(raw);
-    } catch {
-      return c.json({ error: "invalid_payload" }, 400);
-    }
-    // Keep the SDK's real raw-body Ed25519 verification and PING dispatch, not a substitute verifier.
-    const discord = new DiscordHono<{ Bindings: AdapterEnv }>().command("ask", async (ctx) => {
-      const i = ctx.interaction;
-      const guild = guilds.find((g) => g.id === i.guild_id);
-      const actor = i.member?.user;
-      if (!guild || !actor || actor.bot || !guild.actors.includes(actor.id))
-        return c.json({ error: "forbidden" }, 403);
-      const options = "options" in i.data ? i.data.options : undefined;
-      const prompt =
-        options?.length === 1 && options[0]?.type === 3 && options[0].name === "prompt"
-          ? options[0].value
-          : undefined;
-      if (
-        !snowflake(i.id) ||
-        !snowflake(i.channel_id) ||
-        typeof i.token !== "string" ||
-        !/^[A-Za-z0-9._-]{1,2048}$/.test(i.token) ||
-        typeof prompt !== "string" ||
-        !prompt.trim() ||
-        prompt.length > 6000
-      )
-        return c.json({ error: "invalid_payload" }, 400);
-      const sessionId = session(guild.id, i.channel_id);
-      if (Date.now() - createdAt(i.id) > 2500 && !(await status(c.env, "discord", sessionId, i.id)))
-        return c.json({ error: "ack_deadline" }, 503);
-      const now = Date.now();
-      if (now >= windowEnd) {
-        windowEnd = now + 60000;
-        ingressCount = 0;
-        actors.clear();
-      }
-      const actorKey = `${guild.id}:${actor.id}`;
-      const count = actors.get(actorKey) ?? 0;
-      if (count >= 20 || ingressCount >= 100) {
-        c.header("Retry-After", String(Math.max(1, Math.ceil((windowEnd - now) / 1000))));
-        return c.json({ error: "rate_limited" }, 429);
-      }
-      const remaining = started + 2500 - now;
-      if (remaining <= 0) return c.json({ error: "ack_deadline" }, 503);
-      // Reserve synchronously; limits are per isolate, with durable queue bounds behind them.
-      ingressCount++;
-      actors.set(actorKey, count + 1);
-      let timer: ReturnType<typeof setTimeout> | undefined;
+    const handle = async () => {
+      let guilds: Guild[];
       try {
-        await Promise.race([
-          execute(c.env, {
-            adapter: "discord",
-            input: { sessionId, operationId: i.id, input: prompt.trim() },
-            principal: {
-              id: `discord_${guild.id}`,
-              sessions: [sessionId],
-              resources: guild.resources ?? [],
-            },
-            reply: {
-              application: i.application_id,
-              token: i.token,
-              expires: createdAt(i.id) + 900000,
-            },
-          }),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error("ack_deadline")), remaining);
-          }),
-        ]);
-      } finally {
-        clearTimeout(timer);
+        guilds = policy(c.env);
+      } catch {
+        return c.json({ error: "discord_unconfigured" }, 503);
       }
-      if (Date.now() >= started + 2500) return c.json({ error: "ack_deadline" }, 503);
-      return ctx.resDefer();
-    });
-    // Application check also covers PING, which has no guild/member fields.
-    const parsed = JSON.parse(raw);
-    if (parsed?.application_id !== c.env.DISCORD_APPLICATION_ID)
-      return c.json({ error: "forbidden_application" }, 403);
-    if (parsed.type !== 1 && (parsed.type !== 2 || parsed.data?.name !== "ask"))
-      return c.json({ error: "unsupported_interaction" }, 400);
-    return discord.fetch(
-      new Request(c.req.url, { method: "POST", headers: c.req.raw.headers, body: bytes }),
-      c.env,
-    );
+      const ts = c.req.header("x-signature-timestamp") ?? "";
+      if (
+        !/^\d{10,12}$/.test(ts) ||
+        Math.abs(Date.now() / 1000 - Number(ts)) > 300 ||
+        !/^[a-fA-F0-9]{128}$/.test(c.req.header("x-signature-ed25519") ?? "")
+      )
+        return c.json({ error: "invalid_signature" }, 401);
+      const reader = c.req.raw.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      if (reader)
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.length;
+          if (size > 32768) {
+            await reader.cancel();
+            return c.json({ error: "payload_too_large" }, 413);
+          }
+          chunks.push(value);
+        }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      let raw: string;
+      try {
+        raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        JSON.parse(raw);
+      } catch {
+        return c.json({ error: "invalid_payload" }, 400);
+      }
+      // Keep the SDK's real raw-body Ed25519 verification and PING dispatch, not a substitute verifier.
+      const discord = new DiscordHono<{ Bindings: AdapterEnv }>().command("ask", async (ctx) => {
+        const i = ctx.interaction;
+        const guild = guilds.find((g) => g.id === i.guild_id);
+        const actor = i.member?.user;
+        if (!guild || !actor || actor.bot || !guild.actors.includes(actor.id))
+          return c.json({ error: "forbidden" }, 403);
+        const options = "options" in i.data ? i.data.options : undefined;
+        const prompt =
+          options?.length === 1 && options[0]?.type === 3 && options[0].name === "prompt"
+            ? options[0].value
+            : undefined;
+        if (
+          !snowflake(i.id) ||
+          !snowflake(i.channel_id) ||
+          typeof i.token !== "string" ||
+          !/^[A-Za-z0-9._-]{1,2048}$/.test(i.token) ||
+          typeof prompt !== "string" ||
+          !prompt.trim() ||
+          prompt.length > 6000
+        )
+          return c.json({ error: "invalid_payload" }, 400);
+        const sessionId = session(guild.id, i.channel_id);
+        const originalDeadline = createdAt(i.id) + 2500;
+        const duplicate = Date.now() >= originalDeadline;
+        if (duplicate && !(await status(c.env, "discord", sessionId, i.id)))
+          return c.json({ error: "ack_deadline" }, 503);
+        const now = Date.now();
+        if (now >= windowEnd) {
+          windowEnd = now + 60000;
+          ingressCount = 0;
+          actors.clear();
+        }
+        const actorKey = `${guild.id}:${actor.id}`;
+        const count = actors.get(actorKey) ?? 0;
+        if (count >= 20 || ingressCount >= 100) {
+          c.header("Retry-After", String(Math.max(1, Math.ceil((windowEnd - now) / 1000))));
+          return c.json({ error: "rate_limited" }, 429);
+        }
+        const remaining = remainingAckBudget(started, originalDeadline, duplicate, now);
+        if (remaining <= 0) return c.json({ error: "ack_deadline" }, 503);
+        // Reserve synchronously; limits are per isolate, with durable queue bounds behind them.
+        ingressCount++;
+        actors.set(actorKey, count + 1);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            execute(c.env, {
+              adapter: "discord",
+              input: { sessionId, operationId: i.id, input: prompt.trim() },
+              principal: {
+                id: `discord_${guild.id}`,
+                sessions: [sessionId],
+                resources: guild.resources ?? [],
+              },
+              reply: {
+                application: i.application_id,
+                token: i.token,
+                expires: createdAt(i.id) + 900000,
+              },
+            }),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error("ack_deadline")), remaining);
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+        if (remainingAckBudget(started, originalDeadline, duplicate, Date.now()) <= 0)
+          return c.json({ error: "ack_deadline" }, 503);
+        return ctx.resDefer();
+      });
+      // Application check also covers PING, which has no guild/member fields.
+      const parsed = JSON.parse(raw);
+      if (parsed?.application_id !== c.env.DISCORD_APPLICATION_ID)
+        return c.json({ error: "forbidden_application" }, 403);
+      if (parsed.type !== 1 && (parsed.type !== 2 || parsed.data?.name !== "ask"))
+        return c.json({ error: "unsupported_interaction" }, 400);
+      return discord.fetch(
+        new Request(c.req.url, { method: "POST", headers: c.req.raw.headers, body: bytes }),
+        c.env,
+      );
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      // Bounds body reading, signature verification and duplicate RPCs too; RPCs are not cancelled.
+      return await Promise.race([
+        handle(),
+        new Promise<Response>((resolve) => {
+          timer = setTimeout(
+            () => resolve(c.json({ error: "discord_unavailable" }, 503)),
+            Math.max(0, started + 2500 - Date.now()),
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   });
   return app;
 }

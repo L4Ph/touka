@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { create } from "./index";
+import { remainingAckBudget } from "./ack-budget";
 import type { AdapterDependencies } from "@remote-agent/adapter-contract";
 
 const application = "111111111111111111";
@@ -39,6 +40,53 @@ function interaction() {
     data: { name: "ask", type: 1, options: [{ name: "prompt", type: 3, value: "Task" }] },
   };
 }
+
+void test("ACK time uses the original interaction budget and rechecks it after acceptance", () => {
+  const started = 2000;
+  const originalDeadline = 3000;
+  assert.equal(remainingAckBudget(started, originalDeadline, false, started), 1000);
+  assert.equal(remainingAckBudget(started, originalDeadline, false, started + 1500), -500);
+  assert.equal(remainingAckBudget(started, originalDeadline, false, originalDeadline), 0);
+  assert.equal(remainingAckBudget(started, 10000, false, started), 2500);
+  assert.equal(remainingAckBudget(started, originalDeadline, true, started + 1500), 1000);
+  assert.equal(remainingAckBudget(started, originalDeadline, true, started + 2500), 0);
+});
+
+void test("the pre-ACK budget includes a stalled request body", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let entered!: () => void;
+  const reading = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(value) {
+      controller = value;
+    },
+    pull() {
+      entered();
+    },
+  });
+  const init = {
+    method: "POST",
+    headers: {
+      "x-signature-timestamp": String(Math.floor(Date.now() / 1000)),
+      "x-signature-ed25519": "0".repeat(128),
+    },
+    body,
+    duplex: "half",
+  };
+  try {
+    const pending = create(dependencies).request("https://adapter/", init, env);
+    await reading;
+    t.mock.timers.tick(2500);
+    const response = await pending;
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "discord_unavailable" });
+  } finally {
+    controller.close();
+  }
+});
 
 void test("real discord-hono verification and ingress guards reject before durable execution", async () => {
   const app = create(dependencies);
