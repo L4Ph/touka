@@ -1,0 +1,29 @@
+{
+  "title": "Better Auth and team-shared chats",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Authenticate the Web UI with Better Auth and let every authenticated team member view Slack/GitHub/Discord/Webhook conversations. Preserve one Session DO per thread and persist the shared directory.",
+  "acceptance": [
+    {
+      "text": "Reject unauthenticated HTTP and WebSockets",
+      "done": false
+    },
+    {
+      "text": "Let different users view the same thread history and execution state",
+      "done": false
+    },
+    {
+      "text": "Retain exactly one conversation per thread",
+      "done": false
+    },
+    {
+      "text": "Do not expand tool authority through shared viewing",
+      "done": false
+    },
+    {
+      "text": "Prefer Void's Better Auth integration and keep service secrets out of browsers",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

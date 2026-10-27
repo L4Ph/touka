@@ -1,0 +1,25 @@
+{
+  "title": "Discord adapter using discord-hono",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Provide packages/adapter-discord to initiate core work through HTTP Interactions with thread-scoped conversations and durable result delivery. Distinguish this from Gateway mention handling.",
+  "acceptance": [
+    {
+      "text": "Handle signatures, PING, and commands through discord-hono",
+      "done": false
+    },
+    {
+      "text": "Allow only configured guilds and actors; ACK after durable acceptance",
+      "done": false
+    },
+    {
+      "text": "Map one thread to one Session DO",
+      "done": false
+    },
+    {
+      "text": "Verify retries, expiration, and delivery failure",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}
