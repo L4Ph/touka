@@ -181,7 +181,13 @@ export class WebGateway extends WorkerEntrypoint<Env> {
   async fetch(request: Request) {
     const web = new Hono<AppEnv>();
     web.onError((_error, c) => c.json({ error: { code: "request_failed" } }, 500));
-    web.use("*", bodyLimit({ maxSize: LIMITS.requestBytes }));
+    web.use(
+      "*",
+      bodyLimit({
+        maxSize: LIMITS.requestBytes,
+        onError: (c) => c.json({ error: { code: "payload_too_large" } }, 413),
+      }),
+    );
     web.use("*", async (c, next) => {
       const identity = c.req.header("x-team-user");
       if (!identity || identity.length > 256)
