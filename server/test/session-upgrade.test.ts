@@ -92,6 +92,7 @@ test('M0 SQLite sessions survive M1 discovery, duplicate creation, model control
       let settled;
       do {
         settled = await result(sessionId);
+        assert(settled && typeof settled === 'object' && 'status' in settled);
         if (settled.status === 'done') break;
         await new Promise<void>((resolve) => setImmediate(resolve));
       } while (Date.now() < deadline);
