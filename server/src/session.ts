@@ -1,27 +1,19 @@
 import { DurableObject } from 'cloudflare:workers';
-import { createModels } from '@earendil-works/pi-ai/models';
-import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
-import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
-import { createRegistry, Harness } from '@earendil-works/pi-durable';
+import { AgentDoc, createRegistry, Harness } from '@earendil-works/pi-durable';
+import { sessionModels, modelError } from './models';
 import { PiHarness } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import type { Env } from './env';
 import { installTools } from './plugins';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
-import { LIMITS, type SubmitInput, type SubmitReceipt, type OperationStatus } from '../../shared/contracts';
+import { LIMITS, type ModelSelection, type SubmitInput, type SubmitReceipt, type OperationStatus } from '../../shared/contracts';
 
 export class SessionAgent extends DurableObject<Env> {
   readonly harness = new PiHarness({
     harness: ({ storage, context, onWake }) => {
-      const models = createModels({ authContext: { fileExists: async () => false, env: async (name) => {
-        if (name === 'ANTHROPIC_API_KEY') return this.env.ANTHROPIC_API_KEY;
-        if (name === 'OPENAI_API_KEY') return this.env.OPENAI_API_KEY;
-        return undefined;
-      } } });
-      models.setProvider(anthropicProvider());
-      models.setProvider(openaiProvider());
+      const models = sessionModels(this.env);
       const registry = createRegistry();
-      // No grants until the session-control unit persists an authorized owner/resource policy.
+      // Session access does not grant outbound tool permissions.
       installTools(registry, { env: this.env, sessionId: this.ctx.id.toString(), principal: { id: 'unbound', sessions: [], resources: [] } });
       return Harness.open(storage, { models, registry, onWake, settings: {
         retry: { enabled: true, maxRetries: 2, baseDelayMs: 500 }, restartLimit: 3,
@@ -40,6 +32,7 @@ export class SessionAgent extends DurableObject<Env> {
       // A retry must still succeed when the inbox is full.
       if (!existing && (await this.harness.pending()).length >= LIMITS.pending) return null;
       const receipt = await this.harness.submit(input, { operationId });
+      await this.ctx.storage.put('created', true);
       return { sessionId, operationId, accepted: receipt.accepted };
     });
   }
@@ -55,6 +48,41 @@ export class SessionAgent extends DurableObject<Env> {
     return { sessionId, operationId, status: result.status, ...result.text !== undefined ? { text: result.text } : {},
       ...result.reason !== undefined ? { reason: result.reason } : {} };
   }
+
+  async create(model?: ModelSelection) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      if (await this.ctx.storage.get('created')) return { error: 'session_exists' };
+      const selection = model ?? (this.env.MODEL_PROVIDER && this.env.MODEL_ID
+        ? { provider: this.env.MODEL_PROVIDER, id: this.env.MODEL_ID } : undefined);
+      if (!selection) return { error: 'model_unconfigured' };
+      const error = await modelError(this.env, selection);
+      if (error) return { error };
+      await this.harness.session().setModel(selection);
+      await this.ctx.storage.put('created', true);
+      return { error: null };
+    });
+  }
+
+  async summary() {
+    if (!await this.ctx.storage.get('created')) return null;
+    const pi = await this.harness.pi();
+    const conversation = await this.harness.conversation('1');
+    const agent = await pi.snapshot(AgentDoc, conversation.id, BACKGROUND_CONTEXT);
+    return { model: agent?.model ? { provider: agent.model.provider, id: agent.model.modelId } : null,
+      busy: await this.harness.session().busy(), pending: await this.harness.pending() };
+  }
+
+  async transcript() { return JSON.stringify({ messages: await this.harness.messages() }); }
+
+  async setModel(model: ModelSelection) {
+    const error = await modelError(this.env, model);
+    if (error) return { error };
+    await this.harness.session().setModel(model);
+    return { error: null };
+  }
+
+  async abort(operationId?: string) { return this.harness.abort({ operationId }); }
+  async retry() { return this.harness.retry(); }
 
   async inspect() {
     const sessions = await this.harness.sessions.list();

@@ -21,6 +21,17 @@ export interface Principal {
   sessions: readonly string[];
   resources: readonly string[];
 }
+export interface ModelSelection {
+  provider: string;
+  id: string;
+}
+export function isModelSelection(value: unknown): value is ModelSelection {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as Record<string, unknown>;
+  return Object.keys(data).length === 2 && typeof data.provider === 'string'
+    && typeof data.id === 'string' && data.provider.length > 0 && data.provider.length <= 128
+    && data.id.length > 0 && data.id.length <= 256;
+}
 export interface ApiError {
   error: { code: string };
 }

@@ -16,6 +16,7 @@
     "dev": "vite",
     "test": "npm test --workspace server",
     "verify:pilot": "npm run verify:pilot --workspace server",
+    "verify:sessions": "npm run verify:sessions --workspace server",
     "typecheck": "npm run typecheck --workspace server",
     "lint": "npm run lint --workspace server",
     "build:server": "npm run build --workspace server",

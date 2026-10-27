@@ -1,6 +1,6 @@
 # Remote Agent
 
-Independent root Void React Pages SSR and server Pi Durable Workers. M0 and the Webhook pilot are implemented; session controls/events/integrations follow later. Missing routes return 404, not fabricated success.
+Independent root Void React Pages SSR and server Pi Durable Workers. M0, the Webhook pilot, and session controls are implemented; event delivery/integrations follow later. Unimplemented routes return 404, not fabricated success.
 
 ## Install / verify
 
@@ -31,11 +31,11 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 ## Shared seams / ownership
 
 - `shared/contracts.ts`: session/operation/input only, with no source union or origin prompt. Requests: 32 KiB; input: 16k characters; IDs: 128 characters; pending: 16 including running work; tools: 32.
-- `server/src/session.ts`: real PiHarness/Lifecycle/onWake/SQLite/Pi ~1.4.0 with explicit models and no fallback. State inspection does not prove model execution. Only server OpenAI/Anthropic keys are supported; do not substitute another provider for missing config.
+- `server/src/session.ts`: real PiHarness/Lifecycle/onWake/SQLite and Pi ~1.4.0 with explicit provider/model and no fallback. State inspection without a model does not prove execution. Auth supports server OpenAI/Anthropic/Cloudflare Gateway configuration only; never replace missing config with another provider.
 - `server/src/adapters/<name>/index.ts`: create() returns Hono<AppEnv> and mounts at /adapters/<name>. Each adapter owns signatures, policy, bodies, dedupe, and replies. These are not bearer routes; each must authenticate fail-closed.
 - `server/src/tools/<name>/index.ts`: export `create(context: ToolContext): Extension`; the extension name must match its directory. Duplicate extension/tool names or more than 32 tools fail startup, verified against the real registry. Tools are independent of ingress and enforce authorization, output/time limits, and replay classification. Extend Env through module-owned TypeScript declaration merging; shared bindings are wired sequentially during integration.
 - M2 owns adapters/slack, adapters/github, tools/github, and tools/sandbox. Directory-owned modules register without central edits; discover *.test.ts locally and register only index.ts.
-- Tools receive unbound principals and empty resources until session-control persists ownership/resource policy. No ambient shell/fetch or fabricated success for denied operations.
+- Tools currently receive unbound principals with no resources. Session allowlists are not outbound authority; grant nothing until per-tool policy exists. Do not register ambient shell/fetch or fabricate successful unauthorized results.
 - GitHub App/REST/webhook, Slack Web API, and Cloudflare Sandbox dependencies are installed. Sandbox container bindings and provisioning belong to that module.
 
 ## Verification evidence / limits
@@ -57,11 +57,38 @@ curl -sS http://127.0.0.1:8787/api/sessions/session-id/operations/stable-deliver
 
 `POST /adapters/webhook` accepts only `sessionId / operationId / input`, normalizes newlines to LF, and trims surrounding whitespace. TEAM_AUTH authorizes the session. After durable Pi SQLite acceptance it returns 202 with `{sessionId, operationId, accepted}` without waiting for the model. Retrying an ID preserves the first input and returns `accepted:false`, even when the inbox is full; new inputs then return 429. IDs use letters, digits, `_`, or `-`, up to 128 characters. Oversized bodies return 413, invalid input 400, unauthorized sessions 403, and unknown operations 404.
 
-Status uses real Pi pending/settled operations: queued/running/parked/done/unanswered, including text/reason. Missing models/auth never become success; parked means restart exhaustion. Retry/stop/model APIs await session-control. Only explicit Anthropic/OpenAI providers are registered; no fallback.
+Status reads real Pi pending/settled operations: queued/running/parked/done/unanswered, with text or reason. Missing models/auth never become success. Parked indicates restart exhaustion, not infinite retry. Authenticated controls are listed below. Register Anthropic/OpenAI/Cloudflare Gateway explicitly without fallback.
 
 `server/test/pilot.test.ts` is the vertical-slice example. It runs the built Worker on real Miniflare/workerd, SQLite, and HTTP, faking only external Anthropic SSE. Gated streams prove acceptance, running/queued states, limits, and concurrent dedupe. Reopening the same SQLite verifies recovery and retained results; repeated mid-run restarts exercise Pi's real parked-task guard. Other cases cover missing-model unanswered results and fail-closed auth. No fixed sleeps or test-only production hooks are needed. Rejected requests never reach the model, and model input contains no origin message.
 
 Limits: operation expiry and history deletion are not implemented. Do not reuse accepted IDs in a session. A DO restart may repeat model requests: input dedupe is not exactly-once billing or side-effect delivery. Live LLM, Slack/GitHub, and reply delivery remain unverified.
+
+## Durable session controls
+
+```sh
+npm run verify:sessions && npm run typecheck
+```
+
+All APIs require TEAM_AUTH bearer auth. Preconfigure session IDs in each principal's allowlist; no dynamic grants. List only existing authorized sessions.
+
+| Method / path | Body / result |
+|---|---|
+| `GET /api/models` | Real pi-ai provider/model/API catalog, native/Gateway transport, and configuration status; no secrets |
+| `POST /api/sessions` | `{sessionId, model?: {provider, id}}`; 201 on creation, 409 on duplicate |
+| `GET /api/sessions` | `{sessions: [{sessionId, model, busy, pending}]}` |
+| `GET /api/sessions/:id` | `{sessionId, model, busy, pending}`; 404 when absent |
+| `GET /api/sessions/:id/messages` | `{messages}` containing Pi's active transcript entries |
+| `PUT /api/sessions/:id/model` | `{provider, id}` persisted in Pi's agent settings |
+| `POST /api/sessions/:id/abort` | `{operationId?: string}`; omit the ID to stop the session; returns `{aborted}` |
+| `POST /api/sessions/:id/retry` | Resume parked tasks; returns `{retried}` |
+
+Omitted models use server `MODEL_PROVIDER / MODEL_ID`. Invalid models return 400; missing credentials/defaults return 503 without changing existing state. Changes affect the next model request, not an in-flight call. Persisted Pi settings override environment defaults after restart. Lazy Webhook creation remains supported; an unconfigured model settles unanswered.
+
+The bundled cloudflare-ai-gateway catalog/provider requires CLOUDFLARE_API_KEY, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_GATEWAY_ID. It supports anthropic-messages/openai-completions/openai-responses, not all native APIs. Workers AI and arbitrary URLs are not auto-registered. No credential API/chat command exists; reject extra model keys. Never paste secrets into retained conversations.
+
+Authenticated retry resumes parked work. Unanswered is terminal: inspect the reason, fix configuration, and submit a new ID; old IDs dedupe. Tools remain deny-all; session creation grants no ambient authority.
+
+Verification uses real workerd, SQLite, HTTP, and fake external model SSE. It covers actual changed-model requests, transcript/abort persistence, denied sessions, invalid models and injected keys, missing configuration, and authenticated recovery from real parked state. Live native/Gateway connectivity is unverified.
 
 ## Dependency audit
 

@@ -115,11 +115,22 @@ test('webhook admits once before model completion, bounds the inbox, and survive
     stream.close();
     const done = await until(() => status('op'), (result) => result.status === 'done');
     assert.deepEqual(done, { sessionId: 'pilot', operationId: 'op', status: 'done', text: 'Durable answer' });
+    const assertTranscript = async () => {
+      const response = await fetch(new URL('/api/sessions/pilot/messages', url), { headers });
+      assert.equal(response.status, 200);
+      const transcript = await response.json() as { messages: { kind: string; model?: { content: unknown }[] }[] };
+      assert.deepEqual(transcript.messages.find((entry) => entry.kind === 'pi.user')?.model?.[0].content,
+        'Hello\nworld', 'Transcript must expose the submitted user message');
+      assert.deepEqual(transcript.messages.find((entry) => entry.kind === 'pi.assistant')?.model?.[0].content,
+        [{ type: 'text', text: 'Durable answer' }], 'Transcript must expose the completed assistant answer');
+    };
+    await assertTranscript();
     await runtime.dispose();
     streams.length = 0;
     runtime = new Miniflare(options);
     url = await runtime.ready;
     assert.deepEqual(await status('op'), done, 'Terminal result must persist across restart');
+    await assertTranscript();
     assert.deepEqual(await (await submit(payload('op'))).json(), { sessionId: 'pilot', operationId: 'op', accepted: false });
 
     // Real interrupted generations exercise Pi's crash-loop guard, not a fabricated status row.
@@ -136,6 +147,19 @@ test('webhook admits once before model completion, bounds the inbox, and survive
     }
     assert.equal((await status('queued-1')).status, 'parked', 'Repeated interruptions must not be mislabeled running or done');
     assert.deepEqual(await (await submit(payload('queued-1'))).json(), { sessionId: 'pilot', operationId: 'queued-1', accepted: false });
+    const retryUrl = new URL('/api/sessions/pilot/retry', url);
+    assert.equal((await fetch(retryUrl, { method: 'POST' })).status, 401);
+    const beforeRecovery = requests.length;
+    const retry = await fetch(retryUrl, { method: 'POST', headers });
+    assert.deepEqual(await retry.json(), { retried: true });
+    await until(async () => requests.length, (count) => count > beforeRecovery);
+    const recoveredStream = streams.at(-1);
+    assert(recoveredStream);
+    recoveredStream.enqueue(new TextEncoder().encode(answer('Recovered parked operation')));
+    recoveredStream.close();
+    const recovered = await until(() => status('queued-1'), (result) => result.status === 'done');
+    assert.equal(recovered.text, 'Recovered parked operation');
+    await fetch(new URL('/api/sessions/pilot/abort', url), { method: 'POST', headers, body: '{}' });
   } finally {
     await runtime.dispose();
     await rm(state, { recursive: true, force: true });

@@ -8,5 +8,8 @@ export interface Env {
   MODEL_ID?: string;
   ANTHROPIC_API_KEY?: string;
   OPENAI_API_KEY?: string;
+  CLOUDFLARE_API_KEY?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_GATEWAY_ID?: string;
 }
 export type AppEnv = { Bindings: Env; Variables: { principal: Principal } };
