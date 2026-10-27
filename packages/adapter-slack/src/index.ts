@@ -112,6 +112,10 @@ export function create({ execute, status }: AdapterDependencies): Hono<AdapterAp
     } catch {
       return c.json({ error: "invalid_payload" }, 400);
     }
+    // SlackApp's legacy form ssl_check shortcut ACKs before signatures/middleware, even inside JSON.
+    const legacy = new URLSearchParams(raw);
+    if (legacy.get("ssl_check") === "1" && legacy.get("token"))
+      return c.json({ error: "invalid_payload" }, 400);
     const slack = new SlackApp({
       env: {
         SLACK_SIGNING_SECRET: c.env.SLACK_SIGNING_SECRET,

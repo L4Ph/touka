@@ -34,9 +34,10 @@ Implement M0 sequentially and use the Webhook pilot as the exemplar. Parallelize
 - **GitHub Tools resume:** Shared work fixed unbound grants and historical fixtures. Replace unsupported Workers `redirect:error` with manual/non-2xx rejection and test real registered tools on workerd. Preserve authorization and side-effect policy.
 - **Sandbox resume:** Shared work supplies SANDBOX binding/export/migration/Env. Follow the module README for real image provisioning; do not claim unverified Docker/production Containers work.
 - **All M2 workers:** Derive historical glob membership from M0's `git ls-tree`, not current directories. Retain the real old-to-current SQLite/history/model/WS upgrade regression in scoped verification.
+- **Delivery regressions:** Restart real SQLite during unresolved reply sends and queued Pi work before tool execution, without resubmitting grants. Preserve the 20-second timeout and structured failures. Also verify the Slack library cannot ACK success without an outbox.
 - **Integration prerequisites:** Enforce vendor payload/output and ingress-rate limits plus authenticated status. Document at-least-once crash duplicates, 6 attempts/24 hours, one-hour maximum 429 delay, 100 retained jobs/session, and snapshot-grant revocation limits. Real service connectivity/deployment needs credentials and permission.
 
-Shared verification: `npm run verify:delivery && npm run verify`. Record real local HTTP/SQLite/alarms with external fakes, not live LLM/vendor evidence.
+Shared verification: `npx vp check && npm run verify:delivery && npm run verify`. Preserve Void's Vite+ toolchain. The migration baseline passed 37 tests/builds plus delivery/check with 0 errors and 44 warnings; recheck later changes independently. Evidence is local HTTP/SQLite/alarms with external fakes, not live LLM/vendor connectivity.
 
 ## Operator provider correction
 

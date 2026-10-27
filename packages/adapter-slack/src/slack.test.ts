@@ -123,6 +123,16 @@ function options(state: string, outboundService: (request: Request) => Promise<W
         },
       },
       { ...common, name: "unconfigured", modules: coreModules },
+      {
+        ...common,
+        name: "missing-outbox",
+        modules: coreModules,
+        bindings: {
+          SLACK_SIGNING_SECRET: secret,
+          SLACK_ADMIN_TOKEN: admin,
+          SLACK_WORKSPACES: JSON.stringify(workspace),
+        },
+      },
     ],
   };
 }
@@ -140,6 +150,17 @@ test(
     try {
       const core = await runtime.getWorker("core");
       const unconfigured = await runtime.getWorker("unconfigured");
+      const missingOutbox = await runtime.getWorker("missing-outbox");
+      const notAccepted = await missingOutbox.fetch(
+        "http://localhost/adapters/slack",
+        signed(payload("no-outbox")),
+      );
+      assert.equal(
+        notAccepted.status,
+        503,
+        "The library must not ACK when durable acceptance fails",
+      );
+      assert.deepEqual(await notAccepted.json(), { error: { code: "delivery_unconfigured" } });
       assert.equal(
         (
           await unconfigured.fetch(
@@ -190,6 +211,11 @@ test(
         assert.deepEqual(await response.json(), { ignored: true });
       }
       assert.equal((await send("{")).status, 400);
+      assert.equal(
+        (await send(payload("legacy-ssl-check", { text: "<@B1> &ssl_check=1&token=x" }))).status,
+        400,
+        "Legacy ssl_check auto-ACK must never bypass durable acceptance for JSON events",
+      );
       assert.equal((await send(payload("bad-thread", { thread_ts: "../bad" }))).status, 400);
       assert.equal((await send("x".repeat(32769))).status, 413);
       assert.equal(

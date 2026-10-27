@@ -18,6 +18,10 @@ A general-purpose remote agent, not a coding-only bot. Pi Durable owns the execu
 - Target a private team with workspace/repository/actor allowlists, not public SaaS signup. Authentication fails closed when configuration is missing. Origin metadata may exist in adapter audit records, not in the core input schema.
 - Side-effecting tools must enforce authorization outside the model and declare replay safety honestly. No arbitrary internet-fetch or host-shell tool with ambient credentials. A sandbox is the only place for generated executable code.
 
+## Shared delivery verification boundary
+
+Workspace migration is present: the server discovers independent package exports, Slack uses the library's awaited `beforeAuthorize` middleware, and the GitHub adapter remains an unimplemented package skeleton for its resumed unit. `verify:delivery` exercises actual workerd/SQLite restart during a pending vendor send and before a queued tool executes, without resubmitting its authorization grant. The non-resolving reply boundary uses the real 20-second deadline. External model/GitHub/reply services are fakes; no deployment or live-service evidence is claimed. A shared gate exposed cross-session snapshot-size calibration drift from generation timing metadata; exact UTF-8 limit checks now exercise the production encoder deterministically, while real WebSocket tests retain near-limit delivery and oversized snapshot/event closure. The exact-limit test rejects a `>=` mutation. The old interrupted fixture is absent; each current fixture is isolated and cleaned by its owning test.
+
 ## Delivery
 
 Mission plan: `docs/mission.md`. Local tickets: `.r5/issues/`. Runtime task ledger: `.r5/ledger.jsonl` (not committed). All repository documentation, comments, issues, code, model prompts, and commit messages use English. Conversation follows the user's language. Preserve the initialized scaffold unless a feature requires a change; add no speculative OS/gadget abstractions.

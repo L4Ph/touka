@@ -9,7 +9,16 @@ import { executionGrant } from "../src/execution";
 
 const token = "delivery-runtime-token-not-secret-00001";
 const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-const sessions = ["retry", "permanent", "exhausted", "tools", "denied", "queue"];
+const sessions = [
+  "retry",
+  "permanent",
+  "exhausted",
+  "tools",
+  "denied",
+  "queue",
+  "crash",
+  "timeout",
+];
 const member = { id: "member", token, sessions, resources: ["github:team/project:read"] };
 
 function modelAnswer(tool: boolean, text: string) {
@@ -88,6 +97,23 @@ test(
     let githubReads = 0;
     let lastToolResult = "";
     const modelCalls = new Map<string, number>();
+    let toolStarted!: () => void;
+    const toolRequest = new Promise<void>((resolve) => {
+      toolStarted = resolve;
+    });
+    let releaseTool!: () => void;
+    const toolGate = new Promise<void>((resolve) => {
+      releaseTool = resolve;
+    });
+    let holdTool = true;
+    let crashStarted!: () => void;
+    const crashRequest = new Promise<void>((resolve) => {
+      crashStarted = resolve;
+    });
+    let releaseCrash!: () => void;
+    const crashGate = new Promise<void>((resolve) => {
+      releaseCrash = resolve;
+    });
     try {
       await cp("src", resolve(root, "server/src"), { recursive: true });
       await cp("tsconfig.json", resolve(root, "server/tsconfig.json"));
@@ -180,6 +206,10 @@ test(
             );
             const wantsTool = body.includes("read allowed");
             const hasResult = body.includes("tool_result");
+            if (wantsTool && !hasResult && holdTool) {
+              toolStarted();
+              await toolGate;
+            }
             if (hasResult) lastToolResult = body;
             return new WorkerResponse(
               modelAnswer(
@@ -209,6 +239,14 @@ test(
           const history = deliveries.get(body.operation) ?? [];
           history.push({ at: Date.now(), text: body.text });
           deliveries.set(body.operation, history);
+          if (url.pathname === "/crash" && history.length === 1) {
+            crashStarted();
+            await crashGate;
+          }
+          if (url.pathname === "/timeout") {
+            if (history.length === 1) return new Promise<WorkerResponse>(() => {});
+            return new WorkerResponse(null, { status: 403 });
+          }
           if (url.pathname === "/permanent") return new WorkerResponse(null, { status: 403 });
           if (url.pathname === "/exhausted") return new WorkerResponse(null, { status: 503 });
           if (url.pathname === "/retry" && history.length === 1)
@@ -228,7 +266,7 @@ test(
           method,
           headers: auth,
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(30_000),
         });
       const payload = (sessionId: string, kind = sessionId, input = "hello") => ({
         input: { sessionId, operationId: `${sessionId}-op`, input },
@@ -269,7 +307,25 @@ test(
         () => status("permanent"),
         (value) => value.state === "failed",
       );
+      // Interrupt a real vendor send and a queued tool-using Pi operation, not just an idle object.
+      assert.equal((await call("/adapters/probe", "POST", payload("crash"))).status, 202);
+      await crashRequest;
+      assert.equal(
+        (
+          await call("/adapters/webhook", "POST", {
+            sessionId: "tools",
+            operationId: "tools-op",
+            input: "read allowed",
+          })
+        ).status,
+        202,
+      );
+      await toolRequest;
+      assert.equal(githubReads, 0, "The grant must be persisted before any tool execution");
       await runtime.dispose();
+      holdTool = false;
+      releaseTool();
+      releaseCrash();
       runtime = new Miniflare(options);
       url = await runtime.ready;
       assert.equal(
@@ -296,35 +352,15 @@ test(
       );
       assert.equal(deliveries.get("permanent-op")?.length, 1);
 
-      // Persist the authenticated logical session/resource grant, then reopen before exercising a tool.
-      assert.equal(
-        (
-          await call("/adapters/webhook", "POST", {
-            sessionId: "tools",
-            operationId: "initial",
-            input: "hello",
-          })
-        ).status,
-        202,
-      );
-      await until(
-        () => call("/api/sessions/tools/operations/initial").then((r) => r.json()),
+      assert.equal((await call("/adapters/probe", "POST", payload("exhausted"))).status, 202);
+      assert.equal((await call("/adapters/probe", "POST", payload("timeout"))).status, 202);
+      // No submit carrying a principal after restart: the queued operation must recover its own grant.
+      const toolResult = await until<{ status: string; text?: string }>(
+        () => call("/api/sessions/tools/operations/tools-op").then((r) => r.json()),
         (value: any) => value.status === "done",
       );
-      await runtime.dispose();
-      runtime = new Miniflare(options);
-      url = await runtime.ready;
-      assert.equal((await call("/adapters/probe", "POST", payload("exhausted"))).status, 202);
-      assert.equal(
-        (await call("/adapters/probe", "POST", payload("tools", "success", "read allowed"))).status,
-        202,
-      );
-      await until(
-        () => status("tools"),
-        (value) => value.state === "delivered",
-      );
       assert.match(lastToolResult, /authorized-file/);
-      assert.equal(deliveries.get("tools-op")?.[0].text, "AUTHORIZED");
+      assert.equal(toolResult.text, "AUTHORIZED");
       assert.equal(
         githubReads,
         1,
@@ -356,6 +392,12 @@ test(
       );
       assert.equal(deliveries.get("denied-op")?.[0].text, "DENIED");
       assert.equal(githubReads, 1, "Session access alone must never authorize a GitHub read");
+      const timeoutFailure = await until(
+        () => status("timeout"),
+        (value) => value.attempts === 1 && value.failure !== null,
+        25_000,
+      );
+      assert.deepEqual(timeoutFailure.failure, { code: "delivery_transport_failed", attempts: 1 });
       const exhausted = await until(
         () => status("exhausted"),
         (value) => value.state === "failed",
@@ -366,9 +408,26 @@ test(
       const attempts = deliveries.get("exhausted-op")!;
       for (let index = 1; index < attempts.length; index++)
         assert(attempts[index].at - attempts[index - 1].at >= 900 * 2 ** (index - 1));
+      const recovered = await until(
+        () => status("crash"),
+        (value) => value.state === "delivered",
+      );
+      assert.equal(recovered.attempts, 2, "An interrupted send consumes an attempt before restart");
+      assert.equal(deliveries.get("crash-op")?.length, 2);
+      const timedOut = await until(
+        () => status("timeout"),
+        (value) => value.state === "failed",
+      );
+      assert.deepEqual(timedOut.failure, { code: "reply_rejected", attempts: 2 });
+      const timeoutAttempts = deliveries.get("timeout-op")!;
+      assert.equal(timeoutAttempts.length, 2);
+      assert(
+        timeoutAttempts[1].at - timeoutAttempts[0].at >= 20_000,
+        "A non-resolving handler must hit the real deadline before retrying",
+      );
       assert.equal(
         modelCalls.get("plain"),
-        4,
+        5,
         "Reply retries and duplicate acceptance must not rerun Pi",
       );
       assert.deepEqual(await (await call("/adapters/probe", "POST", payload("exhausted"))).json(), {
@@ -386,6 +445,8 @@ test(
       assert.equal(rejected.status, 429);
       assert.deepEqual(await rejected.json(), { error: { code: "delivery_queue_full" } });
     } finally {
+      releaseTool();
+      releaseCrash();
       await runtime?.dispose();
       await rm(root, { recursive: true, force: true });
     }

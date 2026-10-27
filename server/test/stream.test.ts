@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { globSync } from "node:fs";
 import { Miniflare, Response as WorkerResponse, fetch as upgrade, type WebSocket } from "miniflare";
 import type { SessionStreamFrame } from "../../shared/stream";
+import { encodeStreamFrame } from "../src/stream-frame";
 
 const token = "stream-local-token-not-a-secret-000001";
 const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -325,8 +326,21 @@ test(
   },
 );
 
+test("outbound frame encoding accepts exactly 256 KiB of UTF-8 and rejects the next byte", () => {
+  const event = { type: "auto_retry_start" as const, attempt: 1, at: 0, errorMessage: "" };
+  const frame: SessionStreamFrame = { type: "events", sequence: 0, events: [event] };
+  const padding = 262_144 - Buffer.byteLength(JSON.stringify(frame));
+  event.errorMessage = "é".repeat(Math.floor(padding / 2)) + "x".repeat(padding % 2);
+  const encoded = encodeStreamFrame(frame);
+  assert(encoded, "Exactly the maximum byte count must remain deliverable");
+  assert.equal(Buffer.byteLength(encoded.data), 262_144);
+  assert.equal(encoded.bytes, 262_144);
+  event.errorMessage += "x";
+  assert.equal(encodeStreamFrame(frame), null, "The next UTF-8 byte must be refused");
+});
+
 test(
-  "outbound snapshots enforce the 256 KiB boundary and reject oversized committed events",
+  "outbound snapshots near 256 KiB remain deliverable and oversized snapshots/events close",
   { timeout: 10_000, concurrency: true },
   async () => {
     let reply = "stream-fixture-marker";
@@ -392,27 +406,24 @@ test(
       const copies = sample.split(reply).length - 1;
       assert(copies > 0, "Snapshot must contain the committed model response");
       const overhead = Buffer.byteLength(sample) - copies * reply.length;
-      const length = Math.floor((262_144 - overhead) / copies);
+      // Per-generation timing metadata varies across sessions; exact bytes are checked at the encoder.
+      const length = Math.floor((262_144 - overhead - 64) / copies);
       reply = "x".repeat(length);
       await complete("limit");
       const limit = await connect("limit");
       const atLimit = await limit.next();
       assert.equal(atLimit.type, "snapshot");
-      assert.equal(
-        Buffer.byteLength(JSON.stringify(atLimit)),
-        262_144,
-        "Exactly 256 KiB must remain deliverable",
+      const deliveredBytes = Buffer.byteLength(JSON.stringify(atLimit));
+      assert(
+        deliveredBytes >= 262_016 && deliveredBytes <= 262_144,
+        "A real snapshot immediately below the bound must remain deliverable",
       );
       limit.socket.send(JSON.stringify({ type: "unsubscribe" }));
       assert.equal(await limit.closed, 1000);
-      reply += "x";
+      reply += "x".repeat(128);
       await complete("above");
       const above = await connect("above");
-      assert.equal(
-        await above.closed,
-        1009,
-        "A snapshot one text byte beyond the bound must close",
-      );
+      assert.equal(await above.closed, 1009, "A real snapshot above the byte bound must close");
       assert.equal((await call("/api/sessions", "POST", { sessionId: "event" })).status, 201);
       const event = await connect("event");
       assert.equal((await event.next()).type, "snapshot");

@@ -137,8 +137,11 @@ redirect mode and rejects non-2xx, including redirects; Workers does not impleme
 
 `npm run verify:delivery` builds a new workspace-owned authenticated adapter into
 the unchanged real Worker, then drives actual local HTTP, PiHarness, SQLite DO
-alarms, storage reopen, 429/backoff, permanent failure, retry exhaustion, queue
-bounds and dedupe. A real registered GitHub tool receives the persisted authorized
-resource after reopen; a session-only principal is denied. Only the LLM, GitHub
+alarms, in-flight send interruption/reopen, the real 20-second non-resolving handler
+deadline, 429/backoff, permanent failure, retry exhaustion, queue bounds and dedupe.
+A queued tool-using operation resumes after reopen without a new authorized submit;
+the real registered GitHub tool receives its persisted resource grant and logical
+session. A session-only principal is denied. Slack's real library rejects a successful
+ACK when the durable outbox binding is absent. Only the LLM, GitHub
 HTTP and reply vendor boundaries are deterministic fakes. No live LLM/vendor,
 production secrets, deployment, or exactly-once claim.

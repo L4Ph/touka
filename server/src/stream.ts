@@ -3,6 +3,7 @@ import type { PiHarness } from "agents/harness/pi";
 import { teamAuth, sessionAccess } from "./auth";
 import type { AppEnv, Env } from "./env";
 import { STREAM_LIMITS, type SessionStreamFrame } from "../../shared/stream";
+import { encodeStreamFrame } from "./stream-frame";
 
 export function sessionStream(
   request: Request,
@@ -50,9 +51,9 @@ export function sessionStream(
     };
     const send = (frame: SessionStreamFrame) => {
       if (closed) return;
-      const data = JSON.stringify(frame);
-      const bytes = new TextEncoder().encode(data).byteLength;
-      if (bytes > STREAM_LIMITS.frameBytes) return close(1009, "Frame too large; use HTTP history");
+      const encoded = encodeStreamFrame(frame);
+      if (!encoded) return close(1009, "Frame too large; use HTTP history");
+      const { data, bytes } = encoded;
       if (
         unacked.size >= STREAM_LIMITS.unackedFrames ||
         queuedBytes + bytes > STREAM_LIMITS.unackedBytes

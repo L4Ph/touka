@@ -11,6 +11,8 @@ npm ci
 npm run verify
 ```
 
+Preserve Void's default Vite+ toolchain. After the official 1.4.0 migration, 37 runtime tests, builds, delivery verification, and check passed with 0 errors and 44 warnings. That is a migration baseline, not proof for subsequent changes. The root uses `vp -C .`; the server builds independently, with real Node/workerd tests.
+
 `verify` runs server type checks, Oxlint, the Worker build, contract tests, real workerd/SQLite/HTTP smoke tests, and the Void SSR build within 120 seconds. Build the server before `npm test`. Root dev/build scripts target the UI; `npm run dev -w server` or `cd server && cf dev` targets the independent Worker. No deployment has been performed.
 
 ## Local Launch / Doctor / Drive / Cleanup
@@ -40,7 +42,7 @@ Launch runs the built Worker in Miniflare and keeps local DO data in `server/.ru
 
 ## Verification evidence / limits
 
-Runtime tests cover real HTTP, DO SQLite, Pi initialization, health, auth/session/upgrade rejection, oversized bodies, and invalid/duplicate auth configuration. Plugin fixtures build real registration code in Vite and test routes, tools, context, and missing namespaces. Wrong-glob and empty-Pi mutations fail and were restored. Successful WS/events are not implemented yet. Isolated/reordered/repeated tests and Launch/Doctor/Drive/Cleanup passed. The spine does not call models; the pilot uses an external model fake. No production service credentials or Git remote were available.
+Runtime tests cover real HTTP, DO SQLite, Pi initialization, health, auth/session/upgrade rejection, oversized bodies, and invalid/duplicate auth configuration. Plugin fixtures build real registration code in Vite+ and test routes, tools, context, and missing namespaces. Wrong-glob and empty-Pi mutations fail and were restored. Successful WS/events are not implemented yet. Isolated/reordered/repeated tests and Launch/Doctor/Drive/Cleanup passed. The spine does not call models; the pilot uses an external model fake. No production service credentials or Git remote were available.
 
 ## Webhook pilot / verification example
 
@@ -133,4 +135,4 @@ npm run verify:models && npm run verify && npx vp check
 
 Comparing `npm audit --json` with the original HEAD lockfile found 17 starter advisories (10 moderate, 7 high) and 18 in the current lockfile (9 each), with no critical findings. Existing paths include Void/cf/config/Zod, native image libraries, old esbuild/drizzle, and undici. Miniflare 4 pins vulnerable undici 7.28.0; it is local loopback test tooling, not Worker output. Miniflare 5 needs a separate API migration, not a compatibility shim. Updating undici did not override the pin. Force fix proposes breaking Void downgrades and was not run. Counts can change with registry data. Never expose development servers publicly.
 
-References: Cloudflare PiHarness, installed agents/Pi 1.4 types, bundled Void quickstart/CLI docs, and cf help for dev/build. The independent Worker uses Vite's Cloudflare plugin and preserves the existing Void Wrangler scaffold.
+References: Cloudflare [PiHarness](https://developers.cloudflare.com/agents/harnesses/pi/), installed `agents/harness/pi` and Pi 1.4 types, Void's bundled quickstart/CLI docs, and `cf --help`, `cf dev --help`, and `cf build --help`. The independent Worker uses Vite+ with Cloudflare's plugin and preserves the existing Void Wrangler scaffold.
