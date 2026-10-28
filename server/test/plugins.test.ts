@@ -1,9 +1,9 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { build } from "vite";
+import { build } from "vite-plus";
 
 test("workspace triggers and directory tools are discovered and usable after a production build", async () => {
   const root = await mkdtemp(resolve(".plugin-fixture-"));

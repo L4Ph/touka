@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { applyEvent, emptyChat } from "../../shared/chat-state";
 import type { SnapshotEvent, TaskId } from "@earendil-works/pi-durable";

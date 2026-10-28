@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { globSync } from "node:fs";
 import { Miniflare, Response as WorkerResponse, fetch as upgrade, type WebSocket } from "miniflare";
@@ -96,7 +96,7 @@ async function until(check: () => Promise<boolean>) {
 
 test(
   "real HTTP upgrades fail closed for absent credentials, session ACLs and query credentials",
-  { timeout: 20_000, concurrency: true },
+  { timeout: 20_000 },
   async () => {
     const runtime = new Miniflare({
       ...worker,
@@ -144,7 +144,7 @@ test(
 
 test(
   "snapshot precedes committed Pi batches, reconnect refreshes state, clients cannot write, and disconnect releases bounded slots",
-  { timeout: 45_000, concurrency: true },
+  { timeout: 45_000 },
   async () => {
     // No model traffic is needed: setModel commits exercise the actual Pi event stream.
     const runtime = new Miniflare({
@@ -341,7 +341,7 @@ test("outbound frame encoding accepts exactly 256 KiB of UTF-8 and rejects the n
 
 test(
   "outbound snapshots near 256 KiB remain deliverable and oversized snapshots/events close",
-  { timeout: 10_000, concurrency: true },
+  { timeout: 10_000 },
   async () => {
     let reply = "stream-fixture-marker";
     const runtime = new Miniflare({
@@ -441,7 +441,7 @@ test(
 
 test(
   "outstanding bytes close a slow consumer before the 32-frame cap",
-  { timeout: 10_000, concurrency: true },
+  { timeout: 10_000 },
   async () => {
     let provider: ReadableStreamDefaultController<Uint8Array> | undefined;
     const runtime = new Miniflare({

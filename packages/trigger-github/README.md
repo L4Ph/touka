@@ -87,12 +87,11 @@ eliminate that outgoing crash window.
 From the repository root:
 
 ```sh
-npm run verify:connections
-npm run typecheck
+vp test connector trigger
+vp check --no-fmt --no-lint
 ```
 
-The root test script intentionally discovers **all** server/package tests and
-ignores filter arguments. `src/github.test.ts` is discovered there; it builds the
+Vite+ uses Vitest path filters. `src/github.test.ts` builds the
 actual composed Worker and drives real local HTTP, SQLite DOs and alarms through
 Miniflare. Model and GitHub HTTP are boundary fakes. Tests cover raw signature
 mutation, policy/shape/size/self/mention negatives, missing outbox, authorized
@@ -110,10 +109,10 @@ for concurrent within-limit requests, cross-session/case-insensitive actor
 rejection without jobs or sessions,
 invalid signatures not spending quota, aggregate limits, Retry-After and exact
 window recovery. It does not claim distributed/durable quota enforcement.
-Run it directly from `server/` with:
+Run it from the repository root with:
 
 ```sh
-node --import tsx --test ../packages/trigger-github/src/ingress-rate.test.ts
+vp test trigger-github/src/ingress-rate.test.ts
 ```
 
 Protocol references:

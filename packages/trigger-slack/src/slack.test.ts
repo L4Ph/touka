@@ -1,10 +1,10 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "vite";
+import { build } from "vite-plus";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
 
 const secret = "local-slack-signing-secret";

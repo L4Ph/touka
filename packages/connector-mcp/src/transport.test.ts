@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { McpConnector } from "./index";
 
@@ -10,7 +10,7 @@ const access = {
   principal: { id: "team", sessions: ["one"], resources: ["mcp:docs:search"] },
 };
 
-void test("MCP stops in-flight HTTP on caller cancellation", async () => {
+test("MCP stops in-flight HTTP on caller cancellation", async () => {
   let started!: () => void;
   const entered = new Promise<void>((resolve) => {
     started = resolve;
@@ -28,7 +28,7 @@ void test("MCP stops in-flight HTTP on caller cancellation", async () => {
   await assert.rejects(pending, { message: "mcp_aborted" });
 });
 
-void test("MCP rejects redirect and authentication responses without following or exposing diagnostics", async () => {
+test("MCP rejects redirect and authentication responses without following or exposing diagnostics", async () => {
   for (const status of [302, 307, 401, 403, 500]) {
     let calls = 0;
     const http: typeof fetch = async (_input, init) => {

@@ -1,4 +1,4 @@
-import { test, type TestContext } from "node:test";
+import { vi, test, type TestContext } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { generateKeyPairSync, verify } from "node:crypto";
@@ -99,13 +99,14 @@ async function boundary(t: TestContext) {
   const address = server.address();
   assert.ok(address && typeof address !== "string");
   const realFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string, init: RequestInit) => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    assert.ok(typeof input === "string" && init);
     const url = new URL(input);
     assert.equal(url.origin, "https://api.github.com");
     assert.equal(init.redirect, "manual");
     return realFetch(`http://127.0.0.1:${address.port}${url.pathname}${url.search}`, init);
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     server.closeAllConnections();
     server.close();
   });
@@ -327,7 +328,7 @@ test("401 invalidates credentials without replay; redirects and 403/409/429 fail
 test("Connector auth refreshes expiring cached tokens and fails closed on bad key/config", async (t) => {
   const http = await boundary(t);
   let now = Date.now();
-  t.mock.method(Date, "now", () => now);
+  vi.spyOn(Date, "now").mockImplementation(() => now);
   const auth = createGitHubAppAuth(config);
   assert.equal(await auth.token("team/project"), "server-secret-1");
   assert.equal(await auth.token("team/project"), "server-secret-1");

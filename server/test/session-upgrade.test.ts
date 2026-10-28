@@ -1,11 +1,11 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
-import { build } from "vite";
+import { build } from "vite-plus";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
 
 const token = "upgrade-local-token-not-a-secret-0001";
@@ -40,14 +40,24 @@ async function legacyWorker() {
         load(path) {
           const name = relative(root, path);
           if (!name.startsWith("server/src/") && !name.startsWith("shared/")) return;
-          const source = execFileSync("git", ["show", `da11e5251583dbe72366548ccd9ed554280b0e1d:${name}`], {
-            cwd: root,
-            encoding: "utf8",
-          });
+          const source = execFileSync(
+            "git",
+            ["show", `da11e5251583dbe72366548ccd9ed554280b0e1d:${name}`],
+            {
+              cwd: root,
+              encoding: "utf8",
+            },
+          );
           if (name === "server/src/plugins.ts") {
             const files = execFileSync(
               "git",
-              ["ls-tree", "-r", "--name-only", "da11e5251583dbe72366548ccd9ed554280b0e1d", "server/src"],
+              [
+                "ls-tree",
+                "-r",
+                "--name-only",
+                "da11e5251583dbe72366548ccd9ed554280b0e1d",
+                "server/src",
+              ],
               { cwd: root, encoding: "utf8" },
             )
               .trim()

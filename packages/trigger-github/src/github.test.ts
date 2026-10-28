@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { create, deliver } from "./index";
 import type { TriggerAppEnv, TriggerDependencies } from "@remote-agent/trigger-contract";
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";

@@ -7,26 +7,14 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "vp -C . dev",
-    "verify:connections": "npm run build:server && cd server && node --import tsx --test ../packages/connector-*/src/*.test.ts src/tools/github/github.test.ts ../packages/trigger-github/src/*.test.ts ../packages/trigger-slack/src/*.test.ts test/delivery.test.ts",
-    "verify:web": "npm run build && npm run build:server && npx tsc --noEmit && cd server && node --import tsx --test web-test/*.test.ts",
-    "test": "npm test --workspace server",
-    "verify:discord": "npm run typecheck --workspace @remote-agent/trigger-discord && npm run test --workspace @remote-agent/trigger-discord && npm run build:server && cd server && node --import tsx --test test/discord.test.ts",
-    "verify:auth": "npm run build && npm run build:server && cd server && node --import tsx --test auth-test/auth.test.ts",
-    "verify:models": "npm run verify:models --workspace server",
-    "verify:delivery": "npm run verify:delivery --workspace server",
-    "verify:pilot": "npm run verify:pilot --workspace server",
-    "verify:stream": "npm run verify:stream --workspace server",
-    "verify:sessions": "npm run verify:sessions --workspace server",
-    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit",
-    "lint": "npm run lint --workspace server",
-    "build:server": "npm run build --workspace server",
-    "verify": "npm run typecheck && npm run verify --workspace server && npm run build",
-    "verify:mcp": "npm run build:server && cd server && node --import tsx --test ../packages/connector-mcp/src/*.test.ts test/mcp.test.ts",
-    "verify:integration": "npm run verify:auth && npm run verify:discord && npm run verify:web",
-    "verify:all": "npm run verify && npm run verify:integration && vp check",
-    "build": "vp -C . build",
-    "preview": "vp -C . preview",
+    "dev": "vp dev",
+    "build": "vp build",
+    "build:server": "vp -C server build",
+    "build:all": "vp build && vp -C server build",
+    "test": "vp test",
+    "check": "vp check",
+    "verify": "vp run build:all && vp test && vp check",
+    "preview": "vp preview",
     "postinstall": "void prepare"
   },
   "dependencies": {
@@ -47,5 +35,6 @@
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0"
-  }
+  },
+  "packageManager": "npm@11.20.0"
 }

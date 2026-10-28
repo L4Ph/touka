@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { vi, test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { McpConnector } from "./index";
 import { create } from "../../../server/src/tools/mcp/index";
@@ -65,7 +65,7 @@ function remote() {
   return { http, calls };
 }
 
-void test("MCP uses the real SDK handshake, filters tools by grants, and calls the configured endpoint without exposing credentials", async () => {
+test("MCP uses the real SDK handshake, filters tools by grants, and calls the configured endpoint without exposing credentials", async () => {
   const upstream = remote();
   const connector = new McpConnector(env, policy, upstream.http);
   assert.deepEqual(connector.servers(), [{ id: "docs", tools: ["search"] }]);
@@ -88,7 +88,7 @@ void test("MCP uses the real SDK handshake, filters tools by grants, and calls t
   );
 });
 
-void test("MCP rejects ungranted tools, sessions, invalid arguments and operator config before network I/O", async () => {
+test("MCP rejects ungranted tools, sessions, invalid arguments and operator config before network I/O", async () => {
   let requests = 0;
   const http: typeof fetch = async () => {
     requests++;
@@ -129,7 +129,7 @@ void test("MCP rejects ungranted tools, sessions, invalid arguments and operator
   assert.equal(requests, 0);
 });
 
-void test("MCP cancellation and remote errors are bounded and sanitized, and an unconfigured connector stays inert", async () => {
+test("MCP cancellation and remote errors are bounded and sanitized, and an unconfigured connector stays inert", async () => {
   const signal = AbortSignal.abort();
   const http: typeof fetch = async () => {
     throw new Error("private-service-key in upstream diagnostic");
@@ -158,9 +158,9 @@ void test("MCP cancellation and remote errors are bounded and sanitized, and an 
   });
 });
 
-void test("Pi MCP tools reuse the connector and preserve unsafe-call and remote isError semantics", async (t) => {
+test("Pi MCP tools reuse the connector and preserve unsafe-call and remote isError semantics", async (t) => {
   const upstream = remote();
-  t.mock.method(globalThis, "fetch", upstream.http);
+  vi.spyOn(globalThis, "fetch").mockImplementation(upstream.http);
   const extension = create({ env: env as any, ...policy });
   async function invoke(name: string, input: unknown) {
     const tool = extension.tools?.find((entry) => entry.name === name);

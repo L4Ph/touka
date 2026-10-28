@@ -31,13 +31,13 @@ Packages are discovered from `trigger-*/src/index.ts`; routes are `/triggers/<na
 ## Verification
 
 ```sh
-npm run verify:connections
-npm run verify:mcp
-npm run verify
-npm run verify:auth
-npm run verify:discord
-npm run verify:web
-npx vp check
+vp test connector trigger
+vp test connector-mcp test/mcp.test.ts
+vp run verify
+vp test auth-test
+vp test trigger-discord test/discord.test.ts
+vp test web-test
+vp check
 ```
 
-`verify:connections` exercises real Connectors with only external HTTP faked: RSA/scoped cached tokens, denied repository/resource grants, optimistic writes, UTF-8 reply bounds, rate limits and sanitized errors. The Tool test uses the same environment for a Trigger reply and a web-session Tool read and rejects contents writes/session denial without additional vendor requests. Owning API tests moved to Connector packages rather than being copied. Composed GitHub/Slack tests and the shared delivery test use real workerd/SQLite/HTTP/alarms, signatures, gated model ACK ordering, duplicate/conflicting events, retry deadlines and restart/outbox recovery. `verify:auth` additionally proves real shared-web continuation cannot widen a Trigger conversation's resource grant. Model/vendor/OAuth boundaries are fakes, not live-service evidence. No production credentials, deployment or remote writes were used.
+`vp test connector trigger` exercises real Connectors with only external HTTP faked: RSA/scoped cached tokens, denied repository/resource grants, optimistic writes, UTF-8 reply bounds, rate limits and sanitized errors. The Tool test uses the same environment for a Trigger reply and a web-session Tool read and rejects contents writes/session denial without additional vendor requests. Owning API tests moved to Connector packages rather than being copied. Composed GitHub/Slack tests and the shared delivery test use real workerd/SQLite/HTTP/alarms, signatures, gated model ACK ordering, duplicate/conflicting events, retry deadlines and restart/outbox recovery. `vp test auth-test` additionally proves real shared-web continuation cannot widen a Trigger conversation's resource grant. Model/vendor/OAuth boundaries are fakes, not live-service evidence. No production credentials, deployment or remote writes were used.

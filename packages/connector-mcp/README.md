@@ -38,7 +38,7 @@ Explicitly grant resources such as `mcp:docs:search`. New Web conversations use 
 
 ## Verification
 
-`npm run verify:mcp` uses the real SDK for initialize, notifications, listing, and calls, faking only external HTTP. Real workerd/SQLite/Pi tests prove authorized results and rejection before unauthorized dispatch. These tests do not prove credentialed live-service connectivity.
+`vp test connector-mcp test/mcp.test.ts` uses the real SDK for initialize, notifications, listing, and calls, faking only external HTTP. Real workerd/SQLite/Pi tests prove authorized results and rejection before unauthorized dispatch. These tests do not prove credentialed live-service connectivity.
 
 Reference: https://developers.cloudflare.com/agents/tools/mcp/
 

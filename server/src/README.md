@@ -135,7 +135,7 @@ redirect mode and rejects non-2xx, including redirects; Workers does not impleme
 
 ## Evidence
 
-`npm run verify:delivery` builds a new workspace-owned authenticated trigger into
+`vp test test/delivery.test.ts` builds a new workspace-owned authenticated trigger into
 the unchanged real Worker, then drives actual local HTTP, PiHarness, SQLite DO
 alarms, in-flight send interruption/reopen, the real 20-second non-resolving handler
 deadline, 429/backoff, permanent failure, retry exhaustion, queue bounds and dedupe.

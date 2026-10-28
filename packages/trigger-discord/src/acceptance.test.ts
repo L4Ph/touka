@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { vi, test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { create } from "./index";
@@ -40,7 +40,7 @@ function interaction() {
   };
 }
 
-void test("ACK time uses the original interaction budget and rechecks it after acceptance", () => {
+test("ACK time uses the original interaction budget and rechecks it after acceptance", () => {
   const started = 2000;
   const originalDeadline = 3000;
   assert.equal(remainingAckBudget(started, originalDeadline, false, started), 1000);
@@ -51,8 +51,11 @@ void test("ACK time uses the original interaction budget and rechecks it after a
   assert.equal(remainingAckBudget(started, originalDeadline, true, started + 2500), 0);
 });
 
-void test("the pre-ACK budget includes a stalled request body", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+test("the pre-ACK budget includes a stalled request body", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  t.onTestFinished(() => {
+    vi.useRealTimers();
+  });
   let entered!: () => void;
   const reading = new Promise<void>((resolve) => {
     entered = resolve;
@@ -78,7 +81,7 @@ void test("the pre-ACK budget includes a stalled request body", async (t) => {
   try {
     const pending = create(dependencies).request("https://trigger/", init, env);
     await reading;
-    t.mock.timers.tick(2500);
+    vi.advanceTimersByTime(2500);
     const response = await pending;
     assert.equal(response.status, 503);
     assert.deepEqual(await response.json(), { error: "discord_unavailable" });
@@ -87,7 +90,7 @@ void test("the pre-ACK budget includes a stalled request body", async (t) => {
   }
 });
 
-void test("real discord-hono verification and ingress guards reject before durable execution", async () => {
+test("real discord-hono verification and ingress guards reject before durable execution", async () => {
   const app = create(dependencies);
   const post = (
     body: unknown,

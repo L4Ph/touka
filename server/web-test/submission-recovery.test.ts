@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { globSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";

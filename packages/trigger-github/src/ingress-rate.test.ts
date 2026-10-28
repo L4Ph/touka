@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac, generateKeyPairSync } from "node:crypto";
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import { resolve } from "node:path";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
 

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { globSync } from "node:fs";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
@@ -48,7 +48,7 @@ function reply(
   );
 }
 
-void test(
+test(
   "Pi executes a granted MCP tool over Streamable HTTP and blocks ungranted tools before external dispatch",
   { timeout: 20000 },
   async () => {

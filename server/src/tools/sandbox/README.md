@@ -83,9 +83,8 @@ root Void SSR app independent. This unit intentionally changes no root config.
 
 ## Verification and limits
 
-`npm run test -- server/src/tools/sandbox` discovers `sandbox.test.ts` through
-`server/scripts/test.mjs`'s `src/**/*.test.ts` glob. The runner **ignores filter
-arguments** and runs the entire suite. `npm run typecheck` checks native Container
+`vp test src/tools/sandbox` selects the sandbox tests through Vitest path filters.
+`vp check --no-fmt --no-lint` checks native Container
 and installed Sandbox SDK APIs. Tests replace only Cloudflare's external execution
 and RPC boundaries, using real Web Streams, byte limits and AbortSignals. They
 exercise authorization, traversal, namespace isolation, execution/file dispatch,

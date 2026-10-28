@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { vi, test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { editInteractionResponse } from "./index";
 const deliver = (c: {
@@ -10,13 +10,13 @@ const deliver = (c: {
 
 test("expired tokens and rate limits crossing expiry terminate without fallback or secret disclosure", async (t) => {
   const now = 1800000000000;
-  t.mock.method(Date, "now", () => now);
+  vi.spyOn(Date, "now").mockImplementation(() => now);
   let retryAfter = "4";
-  const network = t.mock.method(
-    globalThis,
-    "fetch",
-    async () => new Response(null, { status: 429, headers: { "retry-after": retryAfter } }),
-  );
+  const network = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(
+      async () => new Response(null, { status: 429, headers: { "retry-after": retryAfter } }),
+    );
   const context = {
     env: { DISCORD_APPLICATION_ID: "111111111111111111" },
     job: {
@@ -36,7 +36,7 @@ test("expired tokens and rate limits crossing expiry terminate without fallback 
     }),
     { status: "failed", code: "invalid_destination" },
   );
-  assert.equal(network.mock.callCount(), 0);
+  assert.equal(network.mock.calls.length, 0);
   const live = {
     ...context,
     job: { ...context.job, reply: { ...context.job.reply, expires: now + 4000 } },
@@ -59,7 +59,7 @@ test("expired tokens and rate limits crossing expiry terminate without fallback 
     retryAfterMs: 3000,
   });
   assert.equal(
-    network.mock.callCount(),
+    network.mock.calls.length,
     3,
     "each attempt only edits the original response; no bot fallback",
   );

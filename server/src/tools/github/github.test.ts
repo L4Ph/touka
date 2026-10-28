@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { vi, test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { create } from "./index";
@@ -14,7 +14,8 @@ test("web Tools and Trigger replies share the GitHub Connector, but reply author
   });
   const scopes: unknown[] = [];
   const paths: string[] = [];
-  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    assert.ok(typeof url === "string" && init);
     const path = new URL(url).pathname;
     if (path.endsWith("/access_tokens")) {
       scopes.push(JSON.parse(String(init.body)).permissions);

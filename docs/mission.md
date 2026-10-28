@@ -24,11 +24,11 @@ A general-purpose remote agent using Pi Durable, pi-ai, and the Cloudflare Agent
 8. Limit the GitHub App to allowed repositories, forbid merge/deploy, and execute generated code only in isolation.
 9. MCP connects only to configured URLs and granted tools, hides credentials from listings/errors, and enforces cancellation/output limits.
 10. Distinguish empty, loading, running, tool, stopped, failed, disconnected, and retried UI states; support keyboard operation.
-11. Run `npm run verify:all` and local Launch/Doctor/Drive/Cleanup; distinguish unverified live-service behavior.
+11. Run `vp run verify` and local Launch/Doctor/Drive/Cleanup; distinguish unverified live-service behavior.
 
 ## Implementation and verification
 
-Implementation began with the M0 spine and Webhook pilot. The user stopped worker orchestration; implementation and verification now run directly in the current agent. The historical ledger is `.r5/ledger.jsonl`. Past completion counts do not prove the current tree works.
+Implement and verify directly without worker orchestration. Run the Vite+ tasks in `package.json`; keep operational limits and configuration in the module documentation.
 
 See `package.json` for commands, [connections](connections.md) for responsibilities, [shared web authentication](shared-web-auth.md) for auth, and the [README](../README.md) for setup and limits. Historical fixtures require Git history to read real earlier commits.
 
@@ -36,4 +36,4 @@ See `package.json` for commands, [connections](connections.md) for responsibilit
 
 Production deployment, Cloudflare OS/Gadgets, public SaaS, PR merge, credentialed live Slack/GitHub/Discord/MCP/LLM checks, and real Docker/Cloudflare Containers remain outside local verification. External writes/replies are not exactly-once. Pi conversation deletion and cursor event replay are unsupported.
 
-No Git remote is configured. Keep issues as local tickets in `.r5/issues/`; never invent GitHub issue/PR URLs. Live credentials and future deployment support remain open follow-ups.
+The private repository is https://github.com/L4Ph/mandarin and its default branch is `main`. Open local tickets in `.r5/issues/` track live-service setup and future deployment support.

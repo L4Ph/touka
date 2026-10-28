@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { vi, test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { globSync } from "node:fs";
@@ -384,7 +384,7 @@ test(
       assert.equal(originalReplyCount, 2, "old duplicates must not repeat Discord delivery");
 
       let clock = Date.now();
-      const clockMock = t.mock.method(Date, "now", () => clock);
+      const clockMock = vi.spyOn(Date, "now").mockImplementation(() => clock);
       try {
         const trigger = createDiscord({
           ...triggerDependencies,
@@ -436,7 +436,7 @@ test(
           );
         }
       } finally {
-        clockMock.mock.restore();
+        clockMock.mockRestore();
       }
       await runtime.dispose();
       runtime = new Miniflare({

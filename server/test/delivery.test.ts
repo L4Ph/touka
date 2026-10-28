@@ -1,9 +1,9 @@
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { generateKeyPairSync } from "node:crypto";
-import { build } from "vite";
+import { build } from "vite-plus";
 import { Miniflare, Response as WorkerResponse } from "miniflare";
 import { executionGrant } from "../src/execution";
 

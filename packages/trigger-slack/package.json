@@ -4,8 +4,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "cd ../../server && vpx --test ../packages/trigger-slack/src/slack.test.ts"
+    "test": "vp -C ../.. test trigger-slack"
   },
   "dependencies": {
     "@remote-agent/agent-contract": "*",

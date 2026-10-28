@@ -1,11 +1,11 @@
-import { test } from "node:test";
+import { vi, test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { githubConnector } from "./index";
 const session = "github-thread";
 test("GitHub delivery bounds UTF-8 replies and classifies rate limits, vendor errors and App auth failures", async (t) => {
   const now = 1800000000000;
-  t.mock.method(Date, "now", () => now);
+  vi.spyOn(Date, "now").mockImplementation(() => now);
   let authError: { status?: number; retryAfter?: string; message?: string } | undefined;
   let tokenCalls = 0;
   const env = {
@@ -31,7 +31,8 @@ test("GitHub delivery bounds UTF-8 replies and classifies rate limits, vendor er
   let transportFailure = false;
   let sends = 0;
   let expectedBody = "😀".repeat(15000) + "\n\n[Response truncated; see the session.]";
-  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    assert.ok(typeof url === "string" && init);
     if (url.includes("/access_tokens")) {
       tokenCalls++;
       if (authError) {

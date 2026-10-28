@@ -20,4 +20,4 @@ Ingress is bounded to 32 KiB before library parsing. Timestamp and signature syn
 
 Status: `GET /triggers/slack/jobs/:team/:channel/:thread/:operation`, bearer `SLACK_ADMIN_TOKEN`. Returns sanitized shared outbox state, attempts, due and failure; never input, reply text or credentials. See `../../server/src/README.md` for shared limits, acceptance-time grant revocation limits and at-least-once duplicate risk.
 
-`npm test --workspace @remote-agent/trigger-slack` drives actual local workerd/SQLite, real signatures, delayed fake model, durable ACK, dedupe, reopen, 429 and permanent failures. No live Slack/LLM evidence or deployment. Resumed Slack unit should review vendor-specific limits/rate gates and expand its protocol policy without changing the shared core.
+`vp test --workspace @remote-agent/trigger-slack` drives actual local workerd/SQLite, real signatures, delayed fake model, durable ACK, dedupe, reopen, 429 and permanent failures. No live Slack/LLM evidence or deployment. Resumed Slack unit should review vendor-specific limits/rate gates and expand its protocol policy without changing the shared core.
