@@ -20,7 +20,6 @@ if (command === "launch") {
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: {
       SESSIONS: { className: "SessionAgent", useSQLite: true },
-      SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
       TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
     },
     durableObjectsPersist: ".runtime/state",

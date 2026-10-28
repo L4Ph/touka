@@ -2,7 +2,7 @@ import { test } from "vite-plus/test";
 import assert from "node:assert/strict";
 import { globSync } from "node:fs";
 import { Miniflare, Response as WorkerResponse, fetch as upgrade, type WebSocket } from "miniflare";
-import type { SessionStreamFrame } from "../../shared/stream";
+import type { SessionStreamFrame } from "../src/stream-protocol";
 import { encodeStreamFrame } from "../src/stream-frame";
 
 const token = "stream-local-token-not-a-secret-000001";

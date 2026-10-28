@@ -117,7 +117,6 @@ test(
     try {
       await cp("src", resolve(root, "server/src"), { recursive: true });
       await cp("tsconfig.json", resolve(root, "server/tsconfig.json"));
-      await cp("../shared", resolve(root, "shared"), { recursive: true });
       await cp("../packages", resolve(root, "packages"), { recursive: true });
       const directory = resolve(root, "packages/trigger-probe/src");
       await mkdir(directory, { recursive: true });

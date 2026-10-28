@@ -1,8 +1,6 @@
-import { defineConfig, lazyPlugins } from "vite-plus";
-import { voidPlugin } from "void";
-import { voidReact } from "@void/react/plugin";
+import { defineConfig } from "vite-plus";
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   defaultPackage: ".",
   fmt: {},
   lint: {
@@ -10,19 +8,9 @@ export default defineConfig(({ mode }) => ({
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: true, typeCheck: true },
   },
-  plugins:
-    mode === "test"
-      ? []
-      : lazyPlugins(() => [voidPlugin(), voidReact({ react: { compiler: true } })]),
   test: {
     root: "./server",
-    include: [
-      "test/**/*.test.ts",
-      "src/**/*.test.ts",
-      "../packages/**/*.test.ts",
-      "auth-test/**/*.test.ts",
-      "web-test/**/*.test.ts",
-    ],
+    include: ["test/**/*.test.ts", "src/**/*.test.ts", "../packages/**/*.test.ts"],
     environment: "node",
     setupFiles: ["test/setup.ts"],
     pool: "forks",
@@ -31,4 +19,4 @@ export default defineConfig(({ mode }) => ({
     hookTimeout: 60000,
     restoreMocks: true,
   },
-}));
+});

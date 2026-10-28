@@ -4,45 +4,33 @@ import { globSync } from "node:fs";
 import { Miniflare } from "miniflare";
 
 const requestBytes = 32_768;
+const token = "body-limit-machine-token-000000000001";
 
 test.each(["known-length", "streamed"])(
-  "WebGateway rejects oversized %s bodies before creating durable sessions",
+  "management API rejects oversized %s bodies before creating durable sessions",
   { timeout: 20000 },
   async (framing) => {
+    const sessionId = `body-limit-${framing}`;
     const runtime = new Miniflare({
-      workers: [
-        {
-          name: "browser-proxy",
-          modules: true,
-          script: "export default { fetch(request, env) { return env.CORE.fetch(request); } };",
-          serviceBindings: { CORE: { name: "core", entrypoint: "WebGateway" } },
-          compatibilityDate: "2026-08-01",
-        },
-        {
-          name: "core",
-          modules: [
-            "dist/remote_agent_server/index.js",
-            ...globSync("dist/remote_agent_server/assets/*.js"),
-          ].map((path) => ({ type: "ESModule" as const, path })),
-          compatibilityDate: "2026-08-01",
-          compatibilityFlags: ["nodejs_compat"],
-          durableObjects: {
-            SESSIONS: { className: "SessionAgent", useSQLite: true },
-            SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
-          },
-          bindings: {
-            MODEL_PROVIDER: "anthropic",
-            MODEL_ID: "claude-sonnet-4-5",
-            ANTHROPIC_API_KEY: "local-unused-key",
-          },
-        },
-      ],
+      modules: [
+        "dist/remote_agent_server/index.js",
+        ...globSync("dist/remote_agent_server/assets/*.js"),
+      ].map((path) => ({ type: "ESModule" as const, path })),
+      compatibilityDate: "2026-08-01",
+      compatibilityFlags: ["nodejs_compat"],
+      durableObjects: { SESSIONS: { className: "SessionAgent", useSQLite: true } },
+      bindings: {
+        TEAM_AUTH: JSON.stringify([
+          { id: "operator", token, sessions: [sessionId], resources: [] },
+        ]),
+        MODEL_PROVIDER: "anthropic",
+        MODEL_ID: "claude-sonnet-4-5",
+        ANTHROPIC_API_KEY: "local-unused-key",
+      },
     });
-    const headers = { "x-team-user": "local-team-member", "Content-Type": "application/json" };
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
     try {
       await runtime.ready;
-
-      const sessionId = `body-limit-${framing}`;
       // JSON whitespace keeps the oversized request otherwise valid and capable of creating a session.
       const json = JSON.stringify({ sessionId });
       const body = json.padEnd(requestBytes + 1, " ");
@@ -77,11 +65,7 @@ test.each(["known-length", "streamed"])(
         headers,
         body: json.padEnd(requestBytes, " "),
       });
-      assert.equal(
-        accepted.status,
-        201,
-        "The inclusive body limit must still allow valid session creation",
-      );
+      assert.equal(accepted.status, 201, "The inclusive body limit allows valid session creation");
       assert.deepEqual(await accepted.json(), { sessionId });
     } finally {
       await runtime.dispose();

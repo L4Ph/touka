@@ -1,13 +1,10 @@
-import { WorkerEntrypoint } from "cloudflare:workers";
-import type { Env } from "./env";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { LIMITS, validId, isModelSelection } from "@remote-agent/agent-contract";
 import type { AppEnv } from "./env";
-import { teamAuth, sessionAccess, knownSessionIds } from "./auth";
+import { teamAuth, sessionAccess } from "./auth";
 import { mountTriggers } from "./plugins";
 import { modelCatalog } from "./models";
-export { SessionDirectory } from "./directory";
 export { SessionAgent } from "./session";
 export { TriggerJobs } from "./jobs";
 export { SandboxSession } from "./tools/sandbox/worker";
@@ -38,43 +35,14 @@ app.use(
 );
 app.get("/health", (c) => c.json({ status: "ok", service: "remote-agent" }));
 app.use("/api/*", teamAuth);
-const control = new Hono<AppEnv>();
-control.use("/api/sessions/:sessionId", sessionAccess);
-control.use("/api/sessions/:sessionId/*", sessionAccess);
-const routes = control
-  .get("/api/sessions/:sessionId/events", (c) => {
-    const id = c.req.param("sessionId");
-    const agent = c.env.SESSIONS.getByName(id);
-    if (!c.get("teamViewer")) return agent.fetch(c.req.raw);
-    const internal = new URL(c.req.url);
-    internal.pathname = `/internal/web/${id}`;
-    return agent.fetch(new Request(internal, c.req.raw));
-  })
+app.use("/api/sessions/:sessionId", sessionAccess);
+app.use("/api/sessions/:sessionId/*", sessionAccess);
+app
+  .get("/api/sessions/:sessionId/events", (c) =>
+    c.env.SESSIONS.getByName(c.req.param("sessionId")).fetch(c.req.raw),
+  )
   .get("/api/models", async (c) => c.json({ providers: await modelCatalog(c.env) }))
   .get("/api/sessions", async (c) => {
-    if (c.get("teamViewer")) {
-      const directory = c.env.SESSION_DIRECTORY?.getByName("team");
-      if (!directory) return c.json({ error: { code: "directory_unconfigured" } }, 503);
-      // Legacy discovery requires known IDs, never DO enumeration or a wildcard grant.
-      const seeds: unknown = JSON.parse(c.env.SESSION_INDEX_SEEDS ?? "[]");
-      if (!Array.isArray(seeds) || seeds.length > 1000 || !seeds.every(validId))
-        return c.json({ error: { code: "directory_unconfigured" } }, 503);
-      const known = [...new Set([...seeds, ...knownSessionIds(c.env.TEAM_AUTH)])];
-      if (known.length > 1000) return c.json({ error: { code: "directory_unconfigured" } }, 503);
-      for (const id of known) await directory.register(id);
-      const after = c.req.query("after") ?? "";
-      const limit = Number(c.req.query("limit") ?? "50");
-      if ((after && !validId(after)) || !Number.isInteger(limit) || limit < 1 || limit > 100)
-        return c.json({ error: { code: "invalid_page" } }, 400);
-      const page = await directory.page(after, limit);
-      const sessions = await Promise.all(
-        page.ids.map(async (sessionId) => {
-          const summary = await c.env.SESSIONS.getByName(sessionId).summary();
-          return summary ? { sessionId, ...summary } : null;
-        }),
-      );
-      return c.json({ sessions: sessions.filter((item) => item !== null), next: page.next });
-    }
     const sessions = await Promise.all(
       c.get("principal").sessions.map(async (sessionId) => {
         const summary = await c.env.SESSIONS.getByName(sessionId).summary();
@@ -92,35 +60,15 @@ const routes = control
       (body.model !== undefined && !isModelSelection(body.model))
     )
       return c.json({ error: { code: "invalid_session_config" } }, 400);
-    if (!c.get("teamViewer") && !c.get("principal").sessions.includes(body.sessionId))
+    if (!c.get("principal").sessions.includes(body.sessionId))
       return c.json({ error: { code: "forbidden" } }, 403);
-    const result = await c.env.SESSIONS.getByName(body.sessionId).create(
-      body.model,
-      body.sessionId,
-    );
+    const result = await c.env.SESSIONS.getByName(body.sessionId).create(body.model);
     if (result.error)
       return c.json(
         { error: { code: result.error } },
         result.error === "session_exists" ? 409 : result.error === "model_unconfigured" ? 503 : 400,
       );
     return c.json({ sessionId: body.sessionId }, 201);
-  })
-  .post("/api/sessions/:sessionId/inputs", async (c) => {
-    if (!c.get("teamViewer")) return c.json({ error: { code: "forbidden" } }, 403);
-    const body = await c.req.json().catch(() => null);
-    if (
-      !body ||
-      !validId(body.operationId) ||
-      typeof body.input !== "string" ||
-      !body.input.trim() ||
-      new TextEncoder().encode(body.input).length > 16000 ||
-      Object.keys(body).some((key) => !["operationId", "input"].includes(key))
-    )
-      return c.json({ error: { code: "invalid_input" } }, 400);
-    const agent = c.env.SESSIONS.getByName(c.req.param("sessionId"));
-    if (!(await agent.summary())) return c.json({ error: { code: "session_not_found" } }, 404);
-    const receipt = await agent.submitShared({ sessionId: c.req.param("sessionId"), ...body });
-    return receipt ? c.json(receipt, 202) : c.json({ error: { code: "queue_full" } }, 429);
   })
   .get("/api/sessions/:sessionId", async (c) => {
     const result = await c.env.SESSIONS.getByName(c.req.param("sessionId")).summary();
@@ -159,13 +107,12 @@ const routes = control
       aborted: await c.env.SESSIONS.getByName(c.req.param("sessionId")).abort(body.operationId),
     });
   })
-  .post("/api/sessions/:sessionId/retry", async (c) => {
-    return c.json({ retried: await c.env.SESSIONS.getByName(c.req.param("sessionId")).retry() });
-  })
-  .get("/api/sessions/:sessionId/runtime", async (c) => {
-    const result = await c.env.SESSIONS.getByName(c.req.param("sessionId")).inspect();
-    return c.json(result);
-  })
+  .post("/api/sessions/:sessionId/retry", async (c) =>
+    c.json({ retried: await c.env.SESSIONS.getByName(c.req.param("sessionId")).retry() }),
+  )
+  .get("/api/sessions/:sessionId/runtime", async (c) =>
+    c.json(await c.env.SESSIONS.getByName(c.req.param("sessionId")).inspect()),
+  )
   .get("/api/sessions/:sessionId/operations/:operationId", async (c) => {
     const { sessionId, operationId } = c.req.param();
     if (!validId(operationId)) return c.json({ error: { code: "invalid_operation" } }, 400);
@@ -173,35 +120,5 @@ const routes = control
     if (!result) return c.json({ error: { code: "operation_not_found" } }, 404);
     return c.json(result);
   });
-app.route("/", control);
 mountTriggers(app);
-
-// Named entrypoints are service-binding-only, not publicly routed Worker URLs.
-export class WebGateway extends WorkerEntrypoint<Env> {
-  async fetch(request: Request) {
-    const web = new Hono<AppEnv>();
-    web.onError((_error, c) => c.json({ error: { code: "request_failed" } }, 500));
-    web.use(
-      "*",
-      bodyLimit({
-        maxSize: LIMITS.requestBytes,
-        onError: (c) => c.json({ error: { code: "payload_too_large" } }, 413),
-      }),
-    );
-    web.use("*", async (c, next) => {
-      const identity = c.req.header("x-team-user");
-      if (!identity || identity.length > 256)
-        return c.json({ error: { code: "unauthorized" } }, 401);
-      if (!c.env.SESSION_DIRECTORY)
-        return c.json({ error: { code: "directory_unconfigured" } }, 503);
-      c.set("teamViewer", true);
-      c.set("principal", { id: "team-web", sessions: [], resources: [] });
-      c.header("Cache-Control", "no-store");
-      await next();
-    });
-    web.route("/", control);
-    return web.fetch(request, this.env);
-  }
-}
-export type ControlApi = typeof routes;
 export default app;

@@ -27,9 +27,6 @@ function members(raw: string | undefined): Member[] {
   }
   return data;
 }
-export function knownSessionIds(raw: string | undefined): string[] {
-  return raw ? [...new Set(members(raw).flatMap((member) => member.sessions))] : [];
-}
 async function equal(a: string, b: string): Promise<boolean> {
   const digest = (s: string) => crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   const [left, right] = await Promise.all([digest(a), digest(b)]);
@@ -60,7 +57,7 @@ export const teamAuth: MiddlewareHandler<{
 export const sessionAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
   const id = c.req.param("sessionId");
   if (!validId(id)) return c.json({ error: { code: "invalid_session" } }, 400);
-  if (!c.get("teamViewer") && !c.get("principal").sessions.includes(id))
+  if (!c.get("principal").sessions.includes(id))
     return c.json({ error: { code: "forbidden" } }, 403);
   await next();
 };

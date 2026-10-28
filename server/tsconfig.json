@@ -9,5 +9,5 @@
     "types": ["@cloudflare/workers-types", "vite/client", "node"],
     "esModuleInterop": true
   },
-  "include": ["src", "test", "../shared", "../packages", "vite.config.ts"]
+  "include": ["src", "test", "../packages", "vite.config.ts"]
 }

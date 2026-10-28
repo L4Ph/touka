@@ -12,6 +12,10 @@ import { triggerDependencies } from "../src/trigger";
 const app = "111111111111111111";
 const guild = "222222222222222222";
 const channel = "333333333333333333";
+const thread = "555555555555555555";
+const sibling = "666666666666666666";
+const operatorToken = "discord-machine-token-000000000000";
+const operatorHeaders = { Authorization: `Bearer ${operatorToken}` };
 const actor = "444444444444444444";
 const session = `discord_${guild}_${channel}`;
 const keys = generateKeyPairSync("ed25519");
@@ -77,7 +81,7 @@ async function until<T>(read: () => Promise<T>, match: (v: T) => boolean) {
 test(
   "Discord composition bounds acceptance before ACK, dedupes, isolates conversations and reopens delivery",
   { timeout: 40000 },
-  async (t) => {
+  async () => {
     const state = await mkdtemp(join(tmpdir(), "discord-runtime-"));
     let calls = 0;
     let replyCount = 0;
@@ -93,7 +97,6 @@ test(
     });
     const options = {
       name: "core",
-      serviceBindings: { TEAM_VIEW: { name: "core", entrypoint: "WebGateway" } },
       modules: [
         {
           type: "ESModule" as const,
@@ -123,7 +126,6 @@ test(
       durableObjects: {
         SESSIONS: { className: "SessionAgent", useSQLite: true },
         TRIGGER_JOBS: { className: "TriggerJobs", useSQLite: true },
-        SESSION_DIRECTORY: { className: "SessionDirectory", useSQLite: true },
       },
       durableObjectsPersist: state,
       bindings: {
@@ -134,8 +136,8 @@ test(
         TEAM_AUTH: JSON.stringify([
           {
             id: "operator",
-            token: "discord-machine-token-000000000000",
-            sessions: [],
+            token: operatorToken,
+            sessions: [channel, thread, sibling].map((id) => `discord_${guild}_${id}`),
             resources: [],
           },
         ]),
@@ -239,14 +241,12 @@ test(
       assert.equal(delivered.failure, null);
       assert.equal(replyCount, 2);
       assert.equal(calls, 1);
-      const { TEAM_VIEW } = await runtime.getBindings<{ TEAM_VIEW: { fetch: typeof fetch } }>();
-      const list = await TEAM_VIEW.fetch("https://core.internal/api/sessions", {
-        headers: { "x-team-user": "verified-team-member" },
-      });
+      const list = await fetch(new URL("/api/sessions", url), { headers: operatorHeaders });
       assert.equal(list.status, 200);
-      assert.ok(
-        JSON.stringify(await list.json()).includes(session),
-        "trigger conversation must be team-discoverable",
+      const listed = (await list.json()) as { sessions: { sessionId: string }[] };
+      assert.deepEqual(
+        listed.sessions.map((entry) => entry.sessionId),
+        [session],
       );
       assert.equal(
         (await fetch(new URL(`/triggers/discord/jobs/${guild}/${channel}/${input.id}`, url)))
@@ -271,8 +271,6 @@ test(
       runtime = new Miniflare(options);
       url = await runtime.ready;
       expired = false;
-      const thread = "555555555555555555";
-      const sibling = "666666666666666666";
       const conversations = [channel, thread, sibling, thread];
       const submitted = [];
       for (const [index, conversation] of conversations.entries()) {
@@ -285,23 +283,17 @@ test(
         );
         submitted.push(next);
       }
-      const { TEAM_VIEW: viewer } = await runtime.getBindings<{
-        TEAM_VIEW: { fetch: typeof fetch };
-      }>();
-      const shared = await viewer.fetch("https://core.internal/api/sessions", {
-        headers: { "x-team-user": "verified-team-member" },
-      });
-      const directory = (await shared.json()) as { sessions: { sessionId: string }[] };
+      const listing = await fetch(new URL("/api/sessions", url), { headers: operatorHeaders });
+      assert.equal(listing.status, 200);
+      const entries = (await listing.json()) as { sessions: { sessionId: string }[] };
       assert.deepEqual(
-        directory.sessions.map((s) => s.sessionId).sort(),
+        entries.sessions.map((s) => s.sessionId).sort(),
         [channel, thread, sibling].map((id) => `discord_${guild}_${id}`).sort(),
       );
       for (const conversation of [channel, thread, sibling]) {
-        const transcript = await viewer.fetch(
-          `https://core.internal/api/sessions/discord_${guild}_${conversation}/messages`,
-          {
-            headers: { "x-team-user": "verified-team-member" },
-          },
+        const transcript = await fetch(
+          new URL(`/api/sessions/discord_${guild}_${conversation}/messages`, url),
+          { headers: operatorHeaders },
         );
         assert.equal(transcript.status, 200);
         const messages = JSON.stringify(await transcript.json());
@@ -443,7 +435,6 @@ test(
         ...options,
         durableObjects: {
           SESSIONS: options.durableObjects.SESSIONS,
-          SESSION_DIRECTORY: options.durableObjects.SESSION_DIRECTORY,
         },
       });
       url = await runtime.ready;

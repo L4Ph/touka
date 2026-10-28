@@ -21,5 +21,4 @@ jobs:
           version: 1.4.0
           node-version: 24
           cache: true
-      - run: vp exec playwright install --with-deps chrome
       - run: vp run verify
