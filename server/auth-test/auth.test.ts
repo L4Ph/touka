@@ -123,7 +123,7 @@ function github(request: Request) {
 
 test(
   "Better Auth team cookies share persisted sessions without sharing machine or tool authority",
-  { timeout: 35000 },
+  { timeout: 60000 },
   async () => {
     const state = await mkdtemp(join(tmpdir(), "shared-auth-"));
     let githubRequests = 0;

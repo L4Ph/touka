@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => ({
     environment: "node",
     setupFiles: ["test/setup.ts"],
     pool: "forks",
-    maxWorkers: 4,
+    maxWorkers: 2,
     testTimeout: 60000,
     hookTimeout: 60000,
     restoreMocks: true,

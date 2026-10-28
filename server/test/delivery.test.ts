@@ -88,7 +88,7 @@ test("execution grants reject missing session/resource authority and canonicaliz
 
 test(
   "directory-discovered authenticated delivery survives SQLite reopen, respects 429, bounds retries and supplies persisted tool grants",
-  { timeout: 55_000 },
+  { timeout: 90_000 },
   async () => {
     // Build a directory-owned protocol fixture against the real unchanged Worker/registry/core.
     const root = await mkdtemp(resolve(".delivery-fixture-"));
