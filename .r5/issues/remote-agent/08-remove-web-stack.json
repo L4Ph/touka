@@ -1,0 +1,33 @@
+{
+  "title": "Remove the Web UI and Void stack",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Make Mandarin a headless agent Worker. Remove Void, React, Better Auth, auth D1 migrations, shared Web session discovery, browser proxy and tests while preserving Trigger, Connector, Pi session and authenticated management API behavior. Retain Hono for existing HTTP routing, middleware and Trigger contracts; retain native Vite+ tooling.",
+  "acceptance": [
+    {
+      "text": "No Web UI, Void, Better Auth, browser dependencies, WebGateway or shared directory runtime remains",
+      "done": false
+    },
+    {
+      "text": "Machine bearer auth, session/resource ACLs, durable Trigger handling and management API controls remain verified",
+      "done": false
+    },
+    {
+      "text": "Direct Session DO event access never uses an unauthenticated internal Web bypass",
+      "done": false
+    },
+    {
+      "text": "Vite+ dev/build/test/check and CI target only the agent Worker",
+      "done": false
+    },
+    {
+      "text": "Preserve Session DO data and old migration tags; retire only the shared directory class with a new migration",
+      "done": false
+    },
+    {
+      "text": "Documentation and examples describe the headless product in English",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}
