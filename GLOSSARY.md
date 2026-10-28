@@ -5,7 +5,7 @@ Terminology for a general-purpose agent with multiple entry points.
 ## Language
 
 **Mandarin**:
-The name of this product and its general-purpose agent, with team-shared conversations.
+The name of this product and its general-purpose agent for a private team.
 
 **Agent Core**:
 The owner of a conversation and its execution. It does not depend on the service that initiated the work.
@@ -23,7 +23,7 @@ _Avoid_: Connector for an entry point; Adapter as a product term.
 Data describing an external occurrence, not the executable entry point itself.
 
 **Session**:
-One continuing conversation, associated with an external thread or created directly from the Web. Viewers do not receive separate copies.
+One continuing conversation, associated with an external thread or created through the management API. Authorized callers share the original conversation rather than separate copies.
 
 **Operation**:
 An accepted input and its execution. Retries identify the same operation.

@@ -1,6 +1,6 @@
-# Server extension contracts (M2)
+# Agent Worker extension contracts
 
-The root Void SSR app and `server/` remain independent Workers. Core input is only
+The headless agent runs in `server/`. Core input is only
 `sessionId / operationId / input`. Never put origin metadata, external payloads or
 origin prompts in it. Authentication, actor/resource allowlists, deterministic
 thread mapping and reply formatting belong in `packages/trigger-<name>/`.
@@ -97,13 +97,13 @@ new session when intentionally changing authority. Legacy queued operations cann
 receive tools retroactively. This is intentionally conservative instead of
 switching authority underneath concurrently queued Pi work.
 
-Server composes package exports, registration and durable binding. Packages never import `delivery.ts` or access `SESSIONS` directly. New trigger packages need no central export, binding or registry edits; `src/index.ts` supplies the handlers. Root Void UI and server remain independently buildable/deployable. GitHub, Slack and Discord Triggers use their independent Connector packages. See [dependency direction](../../docs/connections.md).
+Server composes package exports, registration and durable binding. Packages never import `delivery.ts` or access `SESSIONS` directly. New trigger packages need no central export, binding or registry edits; `src/index.ts` supplies the handlers. GitHub, Slack and Discord Triggers use their independent Connector packages. See [dependency direction](../../docs/connections.md).
 
 ## Configuration (server-only, no embedded secrets)
 
 `Env` in `env.ts` is the shared binding contract. `wrangler.jsonc` exports/binds
-`SessionAgent`, `TriggerJobs`, `SandboxSession`, with an additive v2 SQLite
-migration; v1 is retained. Sandbox container provisioning remains explicit using
+`SessionAgent`, `TriggerJobs`, and `SandboxSession`. Earlier migration tags remain
+unchanged; v4 deletes only the former Web directory namespace, not conversation data. Sandbox container provisioning remains explicit using
 `tools/sandbox/README.md`; absent containers fail closed, never run on the host.
 
 | Name                                                                   | Contract                                                                                           |

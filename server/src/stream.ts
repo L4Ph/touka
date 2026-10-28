@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { PiHarness } from "agents/harness/pi";
 import { teamAuth, sessionAccess } from "./auth";
 import type { AppEnv, Env } from "./env";
-import { STREAM_LIMITS, type SessionStreamFrame } from "../../shared/stream";
+import { STREAM_LIMITS, type SessionStreamFrame } from "./stream-protocol";
 import { encodeStreamFrame } from "./stream-frame";
 
 export function sessionStream(
@@ -12,16 +12,11 @@ export function sessionStream(
   harness: PiHarness,
   connections: Set<WebSocket>,
   exists: () => Promise<boolean>,
-  trustedSessionId?: string,
 ) {
   const app = new Hono<AppEnv>();
-  if (!trustedSessionId) {
-    app.use("*", teamAuth);
-    app.use("/api/sessions/:sessionId/events", sessionAccess);
-  }
+  app.use("*", teamAuth);
+  app.use("/api/sessions/:sessionId/events", sessionAccess);
   app.get("/api/sessions/:sessionId/events", async (c) => {
-    if (trustedSessionId && trustedSessionId !== c.req.param("sessionId"))
-      return c.json({ error: { code: "forbidden" } }, 403);
     if (!ctx.id.equals(env.SESSIONS.idFromName(c.req.param("sessionId"))))
       return c.json({ error: { code: "forbidden" } }, 403);
     if (new URL(request.url).search) return c.json({ error: { code: "query_not_allowed" } }, 400);

@@ -1,6 +1,6 @@
 # Mandarin
 
-A general-purpose, durable remote agent for a private team, built on Cloudflare Workers with Pi Durable, pi-ai, and the Agents SDK. The Web UI uses Void React Pages SSR and Vite+.
+A general-purpose, durable remote agent for a private team, built on Cloudflare Workers with Pi Durable, pi-ai, and the Agents SDK. Mandarin is headless: external Triggers start work, and an authenticated HTTP API provides session controls.
 
 ## Development
 
@@ -8,23 +8,20 @@ Use Node 24.11+ and [Vite+](https://viteplus.dev/guide/). The project pins Vite+
 
 ```sh
 vp install
-vp exec playwright install chrome
 vp run verify
 ```
 
-`vp run verify` builds both Workers, runs all Vitest tests through `vp test`, and runs formatting, linting, and type checking through `vp check`. Browser tests use headless Google Chrome. External OAuth, LLM, and service APIs are faked; the Workers, SQLite, D1, HTTP, and WebSocket boundaries run locally.
+`vp run verify` builds the agent Worker, runs all Vitest tests through `vp test`, and runs formatting, linting, and type checking through `vp check`. External LLM and service APIs are faked; workerd, SQLite, HTTP, and WebSocket boundaries run locally.
 
 ```sh
-vp dev                       # Void Web UI
-vp -C server dev             # Independent agent Worker
-vp run build:all             # Build both Workers before runtime tests
+vp run dev                   # Agent Worker on localhost
+vp run build                 # Build the Worker before runtime tests
 vp test                      # All tests
 vp test connector-mcp        # Filter tests by path
-vp test auth-test web-test   # Authentication and browser tests
 vp check                     # Format, lint, and types
 ```
 
-Runtime tests read the built Workers, so rebuild after server changes. Test configuration lives in `vite.config.ts`; there is no separate Node test runner. CI uses `voidzero-dev/setup-vp` and the same `vp run verify` task.
+Runtime tests read the built Worker, so rebuild after server changes. Test configuration lives in `vite.config.ts`; there is no separate Node test runner. CI uses `voidzero-dev/setup-vp` and the same `vp run verify` task.
 
 ## Architecture
 
@@ -33,21 +30,15 @@ Runtime tests read the built Workers, so rebuild after server changes. Test conf
 - **Triggers** receive events, authenticate/filter them, map conversations, accept input durably, and route replies: `packages/trigger-{github,slack,discord,webhook}`.
 - **Tools** expose authorized Connector operations and isolated code execution to Pi: `server/src/tools/`.
 
-A Web-created conversation can use a Connector without selecting a Trigger. Trigger invocation does not automatically grant write access. [Connection contracts](docs/connections.md) describe dependency direction and reply delivery.
+Tools use Connectors independently of the initiating Trigger. Trigger invocation does not automatically grant write access. [Connection contracts](docs/connections.md) describe dependency direction and reply delivery.
 
-## Authentication and shared conversations
+Hono remains the HTTP boundary for management routes, bearer authentication, request-size limits, and Trigger mounting. There is no Web UI, browser proxy, or authentication database.
 
-The root Web Worker uses Void's Better Auth integration. Configure these server-only values in root `.dev.vars` locally:
+## Authentication and session access
 
-- `TEAM_EMAILS`: comma-separated, exact verified team email addresses. Missing configuration denies access.
-- `BETTER_AUTH_SECRET`: the authentication secret.
-- `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET`: credentials for the default GitHub OAuth provider, separate from the bot GitHub App.
+Set server-only `TEAM_AUTH` to a JSON array of `{id, token, sessions, resources}`. Tokens must contain at least 32 random characters. Missing or invalid configuration fails closed. Send `Authorization: Bearer <token>` to the management API and authenticated Webhook Trigger.
 
-`AGENT_CORE` is a service binding to the independent core Worker's named `WebGateway` entry point. Browsers use the same-origin `/api/agent/*` cookie-authenticated proxy; they receive no machine bearer token, provider key, or configurable core URL. Authentication SQL migrations are in `db/migrations/`.
-
-All authenticated team members can view, continue, stop, retry, and select models for the same conversations, including Trigger-created threads. Viewing does not expand the conversation's persisted Tool grants. New Web conversations use operator-configured `WEB_RESOURCES`; the default grants nothing.
-
-See [shared Web authentication](docs/shared-web-auth.md) for deployment bindings, membership and session revocation, directory pagination, and existing-session indexing. `SESSION_INDEX_SEEDS` registers older unindexed thread IDs because Durable Objects cannot be enumerated.
+Session access and outbound resource grants are separate. `GET /api/sessions` lists only existing conversations explicitly allowed by the caller's `sessions` array; add deterministic Trigger-created IDs there for machine access. There is no global session directory. Reading a conversation or changing its model does not expand its persisted Tool grants.
 
 ## Models
 
@@ -92,11 +83,11 @@ Not every pi-ai transport or ambient credential mechanism is supported by worker
 - **MCP:** Streamable HTTP discovery and calls through `mcp_list_tools` / `mcp_call_tool`. Configure `MCP_SERVERS`, secret-referenced headers, and explicit `mcp:<server>:<tool>` grants. Interactive OAuth, stdio/legacy SSE, resources, and prompts are unsupported. [MCP Connector setup](packages/connector-mcp/README.md).
 - **Sandbox:** isolated Python/JavaScript and file tools require explicit container provisioning. No host shell or application secrets are exposed. [Sandbox setup and limits](server/src/tools/sandbox/README.md).
 
-`env.example` lists server settings. Never place credentials in `VITE_*` variables, browser storage, or chat messages. Core secrets belong in `server/.dev.vars`; Web secrets belong in root `.dev.vars`.
+`env.example` lists server settings. Credentials belong in `server/.dev.vars` locally or Worker secrets in production, never client-visible variables or chat messages.
 
 ## Machine Webhooks and operations
 
-`TEAM_AUTH` is a server-only JSON array of `{id, token, sessions, resources}`. Tokens must contain at least 32 random characters. Session access and outbound resource grants are separate; browser users do not use these tokens.
+Use a token and session from `TEAM_AUTH` to start or continue work:
 
 ```sh
 curl http://127.0.0.1:8787/triggers/webhook \
@@ -104,24 +95,44 @@ curl http://127.0.0.1:8787/triggers/webhook \
   -d '{"sessionId":"session-id","operationId":"stable-id","input":"Hello"}'
 ```
 
-The endpoint returns 202 after durable acceptance, without waiting for model completion. Reusing an operation ID preserves its first input and returns `accepted:false`. Queue exhaustion returns 429. Machine `/api/*` routes require bearer authentication; Web users access equivalent controls through the authenticated proxy.
+The endpoint returns 202 after durable acceptance, without waiting for model completion. Reusing an operation ID preserves its first input and returns `accepted:false`. Queue exhaustion returns 429. All `/api/*` routes require bearer authentication and session routes enforce the caller's allowlist.
+
+| Management route                                | Purpose                                                          |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| `GET /api/models`                               | Registered providers and models                                  |
+| `GET /api/sessions`                             | Caller-authorized session summaries                              |
+| `POST /api/sessions`                            | Create with `{"sessionId":"id"}` and optional `model`            |
+| `GET /api/sessions/:id`                         | Model, busy state, pending work                                  |
+| `GET /api/sessions/:id/messages`                | Persisted transcript                                             |
+| `PUT /api/sessions/:id/model`                   | Select `{"provider":"provider-id","id":"model-id"}`              |
+| `POST /api/sessions/:id/abort`                  | Stop with `{}` or `{"operationId":"id"}`                         |
+| `POST /api/sessions/:id/retry`                  | Resume parked work                                               |
+| `GET /api/sessions/:id/operations/:operationId` | Durable operation status/result                                  |
+| `GET /api/sessions/:id/events`                  | Read-only authenticated [WebSocket stream](docs/event-stream.md) |
 
 Operations expose `queued`, `running`, `parked`, `done`, or `unanswered`. Authenticated retry resumes parked tasks; unanswered is terminal and needs a new operation ID after configuration is fixed. Model changes affect the next call, not an in-flight request. Registered tools enforce explicit grants and conservative replay safety; code work stops at PR creation, not merge or deployment.
 
-For a standalone local core runtime:
+For a standalone local core runtime, export operator settings first; Launch inherits the environment rather than reading `.dev.vars`:
 
 ```sh
-vp run build:server
+vp run build
 vp -C server run launch       # Foreground, localhost:8787
 vp -C server run doctor       # Read-only health check
 vp -C server run drive        # Set AGENT_TOKEN and AGENT_SESSION first
 vp -C server run cleanup      # Stop only the managed runtime; preserve data
 ```
 
+## Removing the former Web deployment
+
+Before migrating, record any former Web-only session IDs and add the required machine allowlists; Durable Objects cannot be globally enumerated after the index is removed. The `v4-remove-web-directory` migration deletes only the former `SessionDirectory` index and its data. Earlier migration tags and the `SESSIONS`, `TRIGGER_JOBS`, and `SANDBOX` namespaces remain unchanged; conversation history, jobs, models, and resource grants are retained. No deployment is performed by this source change.
+
+Legacy Web conversations need explicit `TEAM_AUTH.sessions` entries for management access. Continuing them through the Webhook requires the same persisted principal ID and resource set (typically principal `team-web` for Web-created work); a different grant is rejected with `execution_grant_conflict`. Do not reset or widen grants to migrate.
+
+Retire any previously deployed Web Worker and its named core service binding before deploying the headless core. Retire unused auth D1 resources and OAuth secrets separately. Removing source does not delete those remote resources.
+
 ## Limits
 
 - Input deduplication is not exactly-once external delivery. Model calls or replies can repeat across crash boundaries; inspect external results before retrying ambiguous writes.
-- Unconfirmed Web input lives in page memory and is lost on reload or tab closure. Check shared history before resending. Stop and model changes affect all viewers.
 - Operation expiry, history deletion, cursor-based event replay, and workspace backups are not implemented. WebSockets reconnect from a fresh snapshot. Sandbox workspaces are ephemeral.
 - Real Slack/GitHub/Discord/MCP/LLM connectivity, Docker/Cloudflare Containers, and production deployment require operator setup and have not been verified here.
 - Dependency advisories remain tracked in `.r5/issues/remote-agent/07-dependency-advisories.json`. Do not expose development servers publicly or apply breaking `audit fix --force` downgrades.

@@ -78,8 +78,8 @@ installed API. Hardened file reads/writes use a fixed Python program because
 `Files` follows native symlink semantics, unsuitable for untrusted generated paths.
 
 This repository already uses Wrangler. Use the existing server dev command after
-integration, with Docker running; do not deploy generated applications. Keep the
-root Void SSR app independent. This unit intentionally changes no root config.
+integration, with Docker running; do not deploy generated applications. The
+headless Worker runs independently of any browser or UI framework.
 
 ## Verification and limits
 

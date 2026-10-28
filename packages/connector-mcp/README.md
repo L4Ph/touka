@@ -23,7 +23,7 @@ Configure server-only environment variables on the core Worker. There is no chat
 
 Set this JSON as `MCP_SERVERS`, and set the `MCP_DOCS_AUTH` Secret to `Bearer <token>`. Omit headers for public servers. Map Cloudflare Access headers to secret names in the same way. Never embed secret values in the JSON.
 
-Explicitly grant resources such as `mcp:docs:search`. New Web conversations use `WEB_RESOURCES`; machine inputs use their principal's resources. Changing configuration does not expand existing conversation grants. Both the tool allowlist and conversation grant are required; shared viewing grants no additional MCP access.
+Explicitly grant resources such as `mcp:docs:search` in validated Trigger policy or the machine principal's `TEAM_AUTH.resources`. Changing configuration does not expand existing conversation grants. Both the tool allowlist and conversation grant are required; session access alone grants no additional MCP authority.
 
 ## Behavior and limits
 

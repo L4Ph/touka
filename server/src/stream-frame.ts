@@ -1,4 +1,4 @@
-import { STREAM_LIMITS, type SessionStreamFrame } from "../../shared/stream";
+import { STREAM_LIMITS, type SessionStreamFrame } from "./stream-protocol";
 
 export function encodeStreamFrame(frame: SessionStreamFrame) {
   const data = JSON.stringify(frame);

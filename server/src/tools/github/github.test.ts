@@ -4,7 +4,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { create } from "./index";
 import { deliver } from "@remote-agent/trigger-github";
 
-test("web Tools and Trigger replies share the GitHub Connector, but reply authority cannot write repository contents", async (t) => {
+test("agent Tools and Trigger replies share the GitHub Connector, but reply authority cannot write repository contents", async () => {
   const env = Object.assign(Object.create(null), {
     GITHUB_APP_ID: "123",
     GITHUB_APP_PRIVATE_KEY: generateKeyPairSync("rsa", { modulusLength: 2048 })
@@ -55,10 +55,10 @@ test("web Tools and Trigger replies share the GitHub Connector, but reply author
   );
   const context = {
     env,
-    sessionId: "web-conversation",
+    sessionId: "conversation",
     principal: {
       id: "viewer",
-      sessions: ["web-conversation"],
+      sessions: ["conversation"],
       resources: ["github:team/project:read"],
     },
   };

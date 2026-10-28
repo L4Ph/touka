@@ -49,6 +49,28 @@ test("local HTTP opens real Pi/Lifecycle SQLite, enforces auth, session ACL and 
     });
     assert.equal(oversized.status, 413);
     assert.deepEqual(await oversized.json(), { error: { code: "payload_too_large" } });
+    assert.equal(
+      (await get("/api/sessions/allowed/runtime", { "x-team-user": "forged-user" })).status,
+      401,
+      "A Web identity header is never machine API authentication",
+    );
+    const submitted = await fetch(new URL("/triggers/webhook", url), {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: "allowed", operationId: "headless", input: "Hello" }),
+    });
+    assert.equal(submitted.status, 202);
+    const namespace = await runtime.getDurableObjectNamespace("SESSIONS");
+    const direct = await namespace
+      .get(namespace.idFromName("allowed"))
+      .fetch("https://session/internal/web/allowed", {
+        headers: { Upgrade: "websocket" },
+      });
+    if (direct.webSocket) {
+      direct.webSocket.accept();
+      direct.webSocket.close();
+    }
+    assert.equal(direct.status, 401, "Direct DO access has no trusted Web authentication bypass");
   } finally {
     await runtime.dispose();
   }
