@@ -47,6 +47,9 @@ async function sessionId(repo: string, number: number) {
   return `github_${Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
+// GitHub sends pull request and review payloads well past 32 KiB; its own limit is 25 MiB.
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
+
 export function create({
   execute,
   authenticate,
@@ -85,7 +88,7 @@ export function create({
         const { value, done } = await reader.read();
         if (done) break;
         length += value.length;
-        if (length > 32768) {
+        if (length > MAX_WEBHOOK_BYTES) {
           await reader.cancel();
           return c.json({ error: "payload_too_large" }, 413);
         }
@@ -577,7 +580,7 @@ if (import.meta.vitest) {
       assert.equal((await send("{")).status, 400);
       for (const invalid of ["null", "[]", "42", "{}", payload({ action: 1 })])
         assert.equal((await send(invalid)).status, 400);
-      assert.equal((await send("x".repeat(32769))).status, 413);
+      assert.equal((await send("x".repeat(MAX_WEBHOOK_BYTES + 1))).status, 413);
       assert.equal((await send(payload({ repository: { full_name: "team/other" } }))).status, 403);
       assert.equal((await send(payload({ installation: { id: 457 } }))).status, 403);
       assert.equal(

@@ -106,7 +106,7 @@ export class PiDurable extends DurableObject<Env> {
             ]
           : []),
         ...(this.browser && this.env.LOADER
-          ? [browserTool({ browser: this.browser, loader: this.env.LOADER })]
+          ? [browserTool({ browser: this.browser, loader: this.env.LOADER, ctx: this.ctx })]
           : []),
       ];
       registry.install({ name: "web", tools: web });
