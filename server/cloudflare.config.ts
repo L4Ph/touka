@@ -32,8 +32,6 @@ const sandbox = defineContainer({
 });
 
 export default defineConfig({
-  // RADIUS5 Inc. Not a secret; it only selects the account when several are available.
-  accountId: "a861edcf31e50df89b431c5ebe6a3019",
   containers: [sandbox],
   worker: {
     name,

@@ -1,6 +1,8 @@
 {
-  "name": "r5-remote-agent",
+  "name": "touka",
   "private": true,
+  "license": "MIT",
+  "repository": "github:L4Ph/touka",
   "workspaces": [
     "server",
     "packages/*"
