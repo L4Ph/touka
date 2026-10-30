@@ -1,0 +1,22 @@
+{
+  "name": "touka-ai",
+  "url": "https://github.com/L4Ph/touka",
+  "redirect_url": "http://localhost:3000/",
+  "description": "General-purpose remote agent. Mention it on an issue or pull request to hand it a task.",
+  "public": false,
+  "hook_attributes": {
+    "url": "https://touka.example.invalid/triggers/github",
+    "active": true
+  },
+  "default_events": ["issue_comment", "pull_request_review_comment"],
+  "default_permissions": {
+    "metadata": "read",
+    "contents": "write",
+    "issues": "write",
+    "pull_requests": "write",
+    "actions": "read",
+    "checks": "read",
+    "statuses": "read",
+    "workflows": "write"
+  }
+}

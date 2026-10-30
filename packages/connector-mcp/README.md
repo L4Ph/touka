@@ -1,6 +1,6 @@
 # MCP Connector
 
-Use remote MCP tools from Mandarin through the official MCP SDK v2 Streamable HTTP client, also used by the Cloudflare Agents SDK. Pi tool wrappers live in `server/src/tools/mcp/`. This is a Connector, not a Trigger.
+Use remote MCP tools from Touka through the official MCP SDK v2 Streamable HTTP client, also used by the Cloudflare Agents SDK. Pi tool wrappers live in `server/src/tools/mcp/`. This is a Connector, not a Trigger.
 
 ```text
 Pi → mcp_list_tools / mcp_call_tool → McpConnector → MCP server
@@ -38,8 +38,8 @@ Explicitly grant resources such as `mcp:docs:search` in validated Trigger policy
 
 ## Verification
 
-`vp test connector-mcp test/mcp.test.ts` uses the real SDK for initialize, notifications, listing, and calls, faking only external HTTP. Real workerd/SQLite/Pi tests prove authorized results and rejection before unauthorized dispatch. These tests do not prove credentialed live-service connectivity.
+In-source tests (`vp test connector-mcp`) use the real SDK for initialize, notifications, listing, and calls, faking only external HTTP. They do not prove credentialed live-service connectivity.
 
 Reference: https://developers.cloudflare.com/agents/tools/mcp/
 
-Cloudflare's example uses `Agent.addMcpServer()` and the Vercel AI SDK. Mandarin uses a plain DO/PiHarness, so the Connector calls the same official MCP client SDK without introducing a second agent loop.
+Cloudflare's example uses `Agent.addMcpServer()` and the Vercel AI SDK. Touka uses a plain DO/PiHarness, so the Connector calls the same official MCP client SDK without introducing a second agent loop.

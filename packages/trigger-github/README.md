@@ -9,18 +9,20 @@ no server internals, HTTP API client or token/JWT implementation live here.
 
 Subscribe to **Issue comments** and **Pull request review comments**, with the
 webhook URL `https://<agent-server>/triggers/github`. Grant Issues and Pull requests
-read/write permissions for replies. Repository contents writes are not granted by
-this trigger. Configure server-only bindings:
+read/write permissions for replies and the tools. Allowlisted actors on configured
+repositories get repository write for the tools (never merge, never `.github/workflows/`).
+Configure server-only bindings:
 
 - `GITHUB_WEBHOOK_SECRET`: the App webhook secret.
-- `GITHUB_BOT_LOGIN`: exact mention login, including `[bot]` when applicable
-  (for example `helper[bot]`). Matching is case-insensitive.
+- `GITHUB_BOT_LOGIN`: the App's login. The `[bot]` suffix is optional: both `helper` and
+  `helper[bot]` match a comment that mentions `@helper` or `@helper[bot]`, and the App's own
+  comments (`helper[bot]`) are always ignored. Matching is case-insensitive.
 - `GITHUB_ACTORS`: nonempty JSON array of allowed human logins, e.g. `["alice"]`.
 - `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`: the existing App ID and PEM secret.
-- `GITHUB_REPOSITORIES`: exact repository-to-installation map, e.g.
+- `GITHUB_REPOSITORIES`: repository-to-installation map. Use `{"acme/*":456}` for a whole organization (it also covers repositories created later; the App installation's own repository selection still bounds it), or exact entries, which take precedence, e.g.
   `{"team/project":456}`. Matching repository AND installation is required.
 - `TEAM_AUTH`: shared authenticated member policy for status access.
-- The shared `SESSIONS` and `TRIGGER_JOBS` bindings and operator model configuration
+- The shared `PI_DURABLE` and `DELIVERY` bindings and operator model configuration
   must exist; failed durable acceptance returns 503, never a successful ACK.
 
 Authenticated mention ingress is limited automatically before durable execution:
@@ -61,7 +63,7 @@ original top-level review comment (`in_reply_to_id` when present).
 content under that ID returns 409. The shared service owns model execution,
 dedupe, alarms and result delivery; this package never runs a background model
 loop inside the webhook. The session receives only session/operation/input and a
-server-validated read grant for that repository, never App tokens or source prompts.
+server-validated read and write grant for that repository, never App tokens or source prompts.
 
 Replies use `githubConnector(env).reply`, sharing App credentials and scoped token
 cache with outbound Tools. The Connector bounds results below
@@ -91,29 +93,59 @@ vp test connector trigger
 vp check --no-fmt --no-lint
 ```
 
-Vite+ uses Vitest path filters. `src/github.test.ts` builds the
-actual composed Worker and drives real local HTTP, SQLite DOs and alarms through
-Miniflare. Model and GitHub HTTP are boundary fakes. Tests cover raw signature
-mutation, policy/shape/size/self/mention negatives, missing outbox, authorized
-status, concurrent dedupe/conflict, ACK before a gated model, retry after runtime
-restart, issue/review thread replies, UTF-8 truncation and durable failure.
-The package pins the same Miniflare major as the server's runtime tests (the root
-Void toolchain also installs an incompatible beta major). No live GitHub App,
-production LLM, deployment or external credentials were used. Local restart tests
-prove persisted retry scheduling, not exactly-once delivery at GitHub.
+Vite+ uses Vitest path filters. The tests live in `src/index.ts` (in-source) and drive the real
+webhook handler with real HMAC signatures, faking only GitHub and the model at the HTTP boundary:
+raw signature mutation, policy/shape/size/self/mention negatives, ACK refusals, the status emoji
+lifecycle (👀 on acceptance, 🚀 or 😕 on delivery, no emoji for a redelivery) and a reply that must
+not repeat when an emoji fails. No live GitHub App or deployment was used.
 
-`src/ingress-rate.test.ts` builds the composed server and drives its real HTTP
-routes and SQLite Durable Objects in Miniflare with real HMAC signatures. Only
-the clock and external model/GitHub APIs are faked. It verifies durable records
-for concurrent within-limit requests, cross-session/case-insensitive actor
-rejection without jobs or sessions,
-invalid signatures not spending quota, aggregate limits, Retry-After and exact
-window recovery. It does not claim distributed/durable quota enforcement.
-Run it from the repository root with:
+## What a conversation can see and do
 
-```sh
-vp test trigger-github/src/ingress-rate.test.ts
-```
+One issue or pull request is one conversation (`repo#number`; issues and pull requests share the number space, so conversation and review comments share one). Only comments that mention the bot are added to it, as plain text; the repository and number never appear in the prompt.
+
+The trigger gives the conversation `github:<repo>:read`, `github:<repo>:write` and a `github-thread:<repo>#<number>` marker. The agent tools read the marker to know which issue or pull request they are working on:
+
+- Read: `github_get_issue` and `github_get_pull_request` (omit `repo` and `number` for the current thread), `github_read_file`, `github_list_files`, `github_search_code`, and, with the App holding Actions, Checks and Commit statuses read, `github_get_checks` and `github_get_job_log`.
+- Write: `github_create_issue`, `github_update_issue`, `github_add_labels`, `github_comment`, `github_review_pull_request` (COMMENT, APPROVE or REQUEST_CHANGES with inline comments on diff lines, pinned to a commit), `github_reply_review_comment`, `github_request_reviewers`, `github_create_branch`, `github_write_file`, `github_commit_files` (several files and deletions in one commit), `github_open_pull_request`, `github_update_pull_request`. Nothing merges, and files under `.github/workflows/` need a `github:<repo>:workflow` grant that this trigger never gives.
+
+## Status emoji
+
+Accepting new work puts 👀 on the comment that started it (a redelivered webhook adds nothing). When the reply is out, 👀 becomes 🚀 if the agent answered and 😕 if it did not or GitHub refused the reply; a refusal retrying cannot fix (such as permissions that changed after the conversation began) puts 😕 on the comment and is answered with 200 so GitHub does not redeliver. The reply record keeps `commentId` and `commentKind` for this, and an emoji problem never fails or repeats the reply.
+
+## Creating the GitHub App
+
+`app-manifest.json` declares the App for the [manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest). It is private (`public: false`), subscribes to `issue_comment` and `pull_request_review_comment`, and asks for Metadata read plus Contents, Issues and Pull requests write. It also asks for Actions, Checks and Commit statuses read (CI results) and Workflows write; the Workflows credential is only minted for a conversation that holds `github:<repo>:workflow`, which ingress never grants. An App created earlier has to be given these permissions in its settings, and the installation owner has to accept them.
+
+1. Pass the Worker's base URL as `?url=` when you open the page below; it replaces the placeholder `hook_attributes.url` with `<url>/triggers/github`. Without it the placeholder stays, and the URL can be edited later in the App settings.
+2. Open a page that POSTs the manifest to `https://github.com/settings/apps/new` (or `https://github.com/organizations/<org>/settings/apps/new`). Save this as a local file and open it in the browser:
+
+   ```html
+   <form method="post" action="https://github.com/settings/apps/new">
+     <input type="hidden" name="manifest" id="manifest" />
+     <button>Create the App</button>
+   </form>
+   <script>
+     const base = new URLSearchParams(location.search).get("url");
+     fetch("app-manifest.json")
+       .then((r) => r.json())
+       .then((m) => {
+         if (base) m.hook_attributes.url = `${base.replace(/\/$/, "")}/triggers/github`;
+         document.getElementById("manifest").value = JSON.stringify(m);
+       });
+   </script>
+   ```
+
+   Serve it next to `app-manifest.json` (for example `python3 -m http.server 3000`) and open `http://localhost:3000/<file>.html?url=https://<worker>`, since `fetch` does not read `file://`.
+
+3. After you confirm, GitHub redirects to `http://localhost:3000/?code=<code>`. The code expires in one hour. Exchange it once:
+
+   ```sh
+   gh api -X POST /app-manifests/<code>/conversions
+   ```
+
+   The response holds `id` (`GITHUB_APP_ID`), `pem` (`GITHUB_APP_PRIVATE_KEY`), `webhook_secret` (`GITHUB_WEBHOOK_SECRET`) and `slug`. Keep it out of logs and chat.
+
+4. Install the App on the repositories, then read the installation ID with `gh api /user/installations` (or the App's installations page) and put it in `GITHUB_REPOSITORIES`, e.g. `{"owner/repo":456}` or `{"owner/*":456}` for the whole organization. Set `GITHUB_BOT_LOGIN` to `<slug>[bot]`.
 
 Protocol references:
 

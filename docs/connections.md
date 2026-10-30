@@ -19,22 +19,20 @@ Connector packages ← Trigger packages, Tools (never the reverse)
 
 - `packages/agent-contract`: transport-neutral session/operation/input, principal and control-plane types. No service payload/source enum/auth helper.
 - `packages/trigger-contract`: typed durable execution/status/result delivery lifecycle. No Connector-specific capabilities injected into the generic outbox.
-- `packages/connector-github`: App RSA JWT, scoped installation token caching/refresh/invalidation, repository authorization, validated file/branch/PR operations and comment API/error/rate-limit handling. `githubConnector(env)` is shared by Trigger reply delivery and outbound Tools. Each read/write operation takes explicit server resource grants; write does not imply read. Reply capability can post only comments, never contents. No arbitrary API URL/merge/deploy operation is public.
+- `packages/connector-github`: App RSA JWT, scoped installation token caching/refresh/invalidation, repository authorization, validated file/branch/PR operations and comment API/error/rate-limit handling. `githubConnector(env)` is shared by Trigger reply delivery and outbound Tools. Each read/write operation takes explicit server resource grants; write does not imply read. Credentials are minted per operation and per repository at five levels: `read` (contents, issues, pull requests), `write` (the same, write), `reply` (comments, reactions), `ci` (checks, statuses, Actions logs, read) and `workflow` (files under `.github/workflows/`, which also needs its own `github:<repo>:workflow` grant). A level the App does not hold fails as `github_app_lacks_permission:<name>`, never as a bare status. Grants accept `owner/*` for every repository of one owner. No arbitrary API URL/merge/deploy operation is public.
 - `packages/connector-slack`: configured workspace credentials and Web API operations via the installed `slack-web-api-client`. SDK in-memory retry is disabled; the durable outbox handles 429 scheduling. Tokens are not returned by `slackPolicies`. The SDK has no abort-signal option: the outbox still enforces its 20-second deadline, but an in-flight SDK request cannot be cancelled and may complete after timeout (at-least-once delivery).
 - `packages/connector-mcp`: operator-configured Streamable HTTP MCP endpoints, header-secret resolution, session/tool grants, bounded SDK connections and sanitized failures. Pi lists/calls permitted remote tools through `server/src/tools/mcp/`; no inbound Trigger is needed. Setup and limitations: [MCP Connector](../packages/connector-mcp/README.md).
 - `packages/connector-discord`: application-bound interaction response REST, token expiry and 429/expiry/error handling. No implicit bot fallback. Interaction credentials cannot be reused for unrelated channels or after expiry.
 - `packages/trigger-{github,slack,discord,webhook}`: inbound signatures, allowlists/filtering, event-to-conversation mapping, durable accept before ACK, dedupe and result routing. Slack protocol stays in `slack-cloudflare-workers`, Discord Interactions in `discord-hono`. Event means data; only Trigger is an executable ingress module.
-- `server/src/tools/github`: Pi tool schemas/replay declarations, session authorization, and Connector composition using the persisted server resource grant. Conversation grants come from validated Trigger policy or machine `TEAM_AUTH.resources`, never model-supplied grants. Existing conversations keep their original grants; a different principal/resource set cannot continue them. Slack/Discord resource grants require explicit operator policy; GitHub ingress grants read on the authorized repository, never contents-write. Service credentials are not agent authority.
+- `server/src/tools/github`: Pi tool schemas/replay declarations, session authorization, and Connector composition using the persisted server resource grant. Conversation grants come from validated Trigger policy or machine `TEAM_AUTH.resources`, never model-supplied grants. Existing conversations keep their original grants; a different principal/resource set cannot continue them. Slack/Discord resource grants require explicit operator policy; The GitHub Trigger grants read and write on the repository an allowlisted actor wrote in, plus a `github-thread:` marker naming the issue or pull request; never the `workflow` grant. Service credentials are not agent authority.
 
-Packages are discovered from `trigger-*/src/index.ts`; routes are `/triggers/<name>`. Old packages/routes are removed, not forwarded. The package cutover preserves conversation namespace names; retiring the former Web directory has a separate migration described in the root README. Historical M0 fixtures stay pinned to their original commit and original routes.
+Packages are discovered from `trigger-*/src/index.ts`; routes are `/triggers/<name>`. Old packages/routes are removed, not forwarded. Historical M0 fixtures stay pinned to their original commit and original routes.
 
 ## Verification
 
 ```sh
 vp test connector trigger
-vp test connector-mcp test/mcp.test.ts
 vp run verify
-vp test trigger-discord test/discord.test.ts
 vp check
 ```
 

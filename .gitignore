@@ -1,6 +1,6 @@
 node_modules
 dist
-.wrangler
+.cloudflare
 .env
 .env.*
 !.env.example
@@ -8,5 +8,7 @@ dist
 .DS_Store
 .dev.vars
 .dev.vars.*
-.runtime
-.runtime.pid
+
+# Slack CLI per-workspace state (app and team IDs); the manifest and hooks stay tracked
+packages/trigger-slack/.slack/apps.json
+packages/trigger-slack/.slack/cache/

@@ -1,6 +1,6 @@
 # Discord HTTP Interactions trigger
 
-Independent npm workspace using `discord-hono` 0.22.2 (real raw-body Ed25519 verification, PING and command dispatch). Server composition discovers its `create`/`deliver` exports automatically. No Discord types or source labels enter Pi. Root Void SSR and core Worker remain independently deployable.
+Independent npm workspace using `discord-hono` 0.22.2 (real raw-body Ed25519 verification, PING and command dispatch). Server composition discovers its `create`/`deliver` exports automatically. No Discord types or source labels enter Pi.
 
 ## Server configuration
 
@@ -17,7 +17,7 @@ Both exact guild AND actor membership are required; bots and DMs are rejected. D
 
 Set the application's **Interactions Endpoint URL** to `https://<core-worker>/triggers/discord`. PING validates the application ID and signature. Install with `applications.commands` and authorize the command for the intended team members. This is **`/ask prompt:<task>` only**, not raw mentions, Gateway `MESSAGE_CREATE`, or a Gateway connection. Command authorization in Discord is an additional gate, never a substitute for server allowlists.
 
-`channel_id` is the conversation key: an actual Discord thread has its own channel ID and therefore its own Session DO. Repeated `/ask` calls in a regular channel share that channel's conversation. Parent and child threads are not merged. Session IDs are `discord_<guild>_<channel>` and are registered in the shared durable team directory, not copied per viewer.
+`channel_id` is the conversation key: an actual Discord thread has its own channel ID and therefore its own Session DO. Repeated `/ask` calls in a regular channel share that channel's conversation. Parent and child threads are not merged. Session IDs are `discord_<guild>_<channel>`. Machine management access requires those IDs in the caller's explicit session allowlist; no global directory is maintained.
 
 ## Offline command registration
 
@@ -40,7 +40,7 @@ Operator status: `GET /triggers/discord/jobs/<guild>/<channel>/<interaction>` wi
 
 ## Evidence and primary references
 
-`vp test trigger-discord test/discord.test.ts` uses generated Ed25519 keys with the real framework's in-process request path for PING, invalid/stale signatures, oversized/malformed bodies, and actor/guild/application/DM rejection. Small deterministic checks exercise the production-used pure ACK budget calculation: ingress age reduces fresh acceptance's budget, zero remaining time forbids defer, known duplicates retain only the request budget, and neither branch can extend that budget. Signed-request acceptance regressions use the real SQLite outbox below, not fabricated durable receipts. A deterministic timer-driven stalled-body regression checks that the request budget starts before parsing, without substituting durable services. A signed real-entry controlled-clock regression forwards acceptance to the real SQLite outbox through a test-runtime RPC transport bridge, checks the persisted receipt, and rejects its successful return at interaction age 3.5 seconds after entering at age 2 seconds; acceptance within budget still defers. Local workerd/SQLite exercises actual durable acceptance (job state observable at ACK while the external model is gated), duplicate acceptance, fresh acceptance, old duplicate lookup and two-second-old acceptance returning bounded 503 responses while a gated Discord send blocks the real outbox (the gate opens only after the non-success responses), with the old duplicate retaining its terminal durable receipt and attempts after timeout and no repeated Discord delivery after a later same-conversation job completes, missing outbox rejection, shared directory registration, parent/thread/sibling isolation and repeated-thread history, 429 and restart delivery, and terminal unknown/expired-token failure. LLM and Discord HTTP are boundary fakes; no live Discord/LLM/deployment evidence is claimed.
+In-source tests (`vp test trigger-discord`) use generated Ed25519 keys with the real framework's in-process request path for PING, invalid/stale signatures, oversized/malformed bodies, and actor/guild/application/DM rejection, plus the pure ACK budget.
 
 - https://discord-hono.luis.fun/ja/
 - https://discord-hono.luis.fun/interactions/discord-hono/

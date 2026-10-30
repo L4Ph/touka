@@ -95,3 +95,66 @@ export async function postMessage(
     return { status: "retry" as const, code: "slack_http_error" };
   }
 }
+
+export interface ThreadMessage {
+  user: string | null;
+  text: string;
+  ts: string;
+  bot: boolean;
+}
+/**
+ * The messages of one thread, oldest first, capped. An unreadable thread (missing scope, removed bot,
+ * transport error) is an empty one: history is context, never a reason to drop a request.
+ */
+export async function readThread(
+  env: SlackEnv,
+  team: string,
+  channel: string,
+  thread: string,
+): Promise<ThreadMessage[]> {
+  const workspace = workspaces(env).find((w) => w.id === team);
+  if (!workspace || !id(channel) || !/^\d{1,16}\.\d{1,6}$/.test(thread)) return [];
+  const client = new SlackAPIClient(workspace.token, {
+    retryHandlers: [],
+    throwSlackAPIError: false,
+    logLevel: "ERROR",
+  });
+  try {
+    const data = await client.conversations.replies({ channel, ts: thread, limit: 100 });
+    if (!data.ok || !Array.isArray(data.messages)) return [];
+    return data.messages
+      .filter((m) => typeof m.ts === "string" && typeof m.text === "string")
+      .map((m) => ({
+        user: typeof m.user === "string" ? m.user : null,
+        text: m.text as string,
+        ts: m.ts as string,
+        bot: Boolean(m.bot_id),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Status emoji on a message: remove, then add. Purely a signal for people, so it never throws and a
+ * missing scope or an already-present reaction is not an error.
+ */
+export async function setReactions(
+  env: SlackEnv,
+  team: string,
+  channel: string,
+  ts: string,
+  change: { add?: string[]; remove?: string[] },
+): Promise<void> {
+  const workspace = workspaces(env).find((w) => w.id === team);
+  if (!workspace || !id(channel) || !/^\d{1,16}\.\d{1,6}$/.test(ts)) return;
+  const client = new SlackAPIClient(workspace.token, {
+    retryHandlers: [],
+    throwSlackAPIError: false,
+    logLevel: "ERROR",
+  });
+  for (const name of change.remove ?? [])
+    await client.reactions.remove({ channel, timestamp: ts, name }).catch(() => undefined);
+  for (const name of change.add ?? [])
+    await client.reactions.add({ channel, timestamp: ts, name }).catch(() => undefined);
+}

@@ -10,9 +10,11 @@ export default defineConfig({
   },
   test: {
     root: "./server",
-    include: ["test/**/*.test.ts", "src/**/*.test.ts", "../packages/**/*.test.ts"],
+    // Unit tests live in the source files they test (`if (import.meta.vitest)`) and are stripped from
+    // builds by `define` in server/vite.config.ts. There are no separate test files.
+    includeSource: ["src/**/*.ts", "../packages/*/src/**/*.ts"],
+    include: [],
     environment: "node",
-    setupFiles: ["test/setup.ts"],
     pool: "forks",
     maxWorkers: 2,
     testTimeout: 60000,

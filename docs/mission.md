@@ -1,4 +1,4 @@
-# Mandarin initial release
+# Touka initial release
 
 ## Agreed scope
 
@@ -23,8 +23,8 @@ A general-purpose headless remote agent using Pi Durable, pi-ai, and the Cloudfl
 7. Separate Connector/Trigger/Tool packages and dependency direction without legacy Adapter runtime wrappers.
 8. Limit the GitHub App to allowed repositories, forbid merge/deploy, and execute generated code only in isolation.
 9. MCP connects only to configured URLs and granted tools, hides credentials from listings/errors, and enforces cancellation/output limits.
-10. Preserve earlier migration tags and conversation namespaces when retiring the former Web directory.
-11. Run `vp run verify` and local Launch/Doctor/Drive/Cleanup; distinguish unverified live-service behavior.
+10. Declare the PiDurable and SandboxContainer Durable Objects with SQLite storage and the DELIVERY Queue in the native Cloudflare configuration.
+11. Run `vp run verify`, start the Worker with `vp run dev`, and check its real HTTP API; distinguish unverified live-service behavior.
 
 ## Implementation and verification
 
@@ -36,4 +36,4 @@ See [connections](connections.md) for responsibilities and the [README](../READM
 
 Web UI, production deployment, Cloudflare OS/Gadgets, public SaaS, PR merge, credentialed live Slack/GitHub/Discord/MCP/LLM checks, and real Docker/Cloudflare Containers remain outside local verification. External writes/replies are not exactly-once. Pi conversation deletion and cursor event replay are unsupported.
 
-The private repository is https://github.com/L4Ph/mandarin and its default branch is `main`. Open local tickets in `.r5/issues/` track live-service setup and future deployment support.
+The private repository is https://github.com/L4Ph/touka and its default branch is `main`. Open local tickets in `.r5/issues/` track live-service setup and future deployment support.

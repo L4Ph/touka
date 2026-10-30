@@ -1,0 +1,29 @@
+{
+  "title": "Migrate to the native cf toolchain",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Use the pinned cf CLI, cloudflare.config.ts and Cloudflare Vite plugin v2 beta with Vite+. Declare the PiDurable and SandboxContainer SQLite Durable Objects, the DELIVERY Queue and every server secret in the native config, remove the duplicate Node/Miniflare runtime launcher so vp run dev is the only local startup path, and verify authenticated HTTP with restart persistence. Do not deploy during this migration.",
+  "acceptance": [
+    {
+      "text": "Use pinned cf CLI and Vite plugin v2 beta with typed Cloudflare configuration and no Wrangler configuration",
+      "done": true
+    },
+    {
+      "text": "Declare session, job and sandbox Durable Objects with SQLite storage in native Build Output",
+      "done": true
+    },
+    {
+      "text": "Remove the custom runtime launcher, its package scripts and documentation",
+      "done": true
+    },
+    {
+      "text": "Verify vp run dev with actual authenticated HTTP and persistence across restart",
+      "done": true
+    },
+    {
+      "text": "Pass the full Vite+ verification suite and native cf deployment dry run without uploading",
+      "done": true
+    }
+  ],
+  "blockedBy": []
+}

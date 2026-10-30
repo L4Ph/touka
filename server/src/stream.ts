@@ -17,7 +17,7 @@ export function sessionStream(
   app.use("*", teamAuth);
   app.use("/api/sessions/:sessionId/events", sessionAccess);
   app.get("/api/sessions/:sessionId/events", async (c) => {
-    if (!ctx.id.equals(env.SESSIONS.idFromName(c.req.param("sessionId"))))
+    if (!ctx.id.equals(env.PI_DURABLE.idFromName(c.req.param("sessionId"))))
       return c.json({ error: { code: "forbidden" } }, 403);
     if (new URL(request.url).search) return c.json({ error: { code: "query_not_allowed" } }, 400);
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket")

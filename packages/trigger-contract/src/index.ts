@@ -53,6 +53,15 @@ export interface TriggerDependencies {
     sessionId: string,
     operationId: string,
   ): Promise<DeliveryStatus | null>;
+  /** Whether the agent already has a conversation for this session, e.g. it has answered in the thread. */
+  exists?(env: TriggerEnv, sessionId: string): Promise<boolean>;
+  /** Whether the latest message of a conversation is meant for the agent, judged without running it. */
+  addressed?(env: TriggerEnv, conversation: ConversationSample): Promise<boolean>;
+}
+/** A short, ordered excerpt of a human conversation. Names are whatever the trigger can resolve. */
+export interface ConversationSample {
+  thread: { who: string; text: string }[];
+  latest: { who: string; text: string };
 }
 export interface DeliveryStatus {
   operationId: string;

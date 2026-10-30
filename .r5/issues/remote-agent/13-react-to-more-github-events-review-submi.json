@@ -1,0 +1,21 @@
+{
+  "title": "React to more GitHub events: review submissions, failing checks, issue assignment",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "Only comments that mention the App start work. Add pull_request_review (a submitted review that mentions the App), check_run failures on pull requests the agent opened, and issue assignment to the App.",
+  "acceptance": [
+    {
+      "text": "A submitted review that mentions the App starts work in the pull request conversation",
+      "done": false
+    },
+    {
+      "text": "A failing check on an agent pull request starts a fix attempt, bounded in count",
+      "done": false
+    },
+    {
+      "text": "Assigning an issue to the App starts work on it",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

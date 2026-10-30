@@ -1,0 +1,17 @@
+{
+  "title": "Show live progress while the agent works",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "Slack and GitHub show nothing between acceptance and the final reply. Post one status message and edit it as the run goes (current tool, plan), without exceeding Slack and GitHub rate limits.",
+  "acceptance": [
+    {
+      "text": "One status message per operation is created on acceptance and edited until the final reply replaces it",
+      "done": false
+    },
+    {
+      "text": "Edits are throttled below the vendor rate limits",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

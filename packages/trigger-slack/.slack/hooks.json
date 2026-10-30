@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "get-manifest": "sh -c 'sed \"s#https://touka.example.invalid#${TOUKA_URL:-https://touka.example.invalid}#g\" manifest.json' --"
+  }
+}

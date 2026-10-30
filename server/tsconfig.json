@@ -6,8 +6,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["@cloudflare/workers-types", "vite/client", "node"],
+    "types": ["@cloudflare/workers-types", "vite/client", "node", "vite-plus/test/importMeta"],
     "esModuleInterop": true
   },
-  "include": ["src", "test", "../packages", "vite.config.ts"]
+  "include": ["src", "test", "../packages", "vite.config.ts", "cloudflare.config.ts"]
 }

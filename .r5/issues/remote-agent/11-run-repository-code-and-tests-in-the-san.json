@@ -1,0 +1,17 @@
+{
+  "title": "Run repository code and tests in the sandbox",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "The sandbox is offline and has no checkout, so the agent cannot build or test what it changes. Design a checkout with an allowlisted network (the git host and package registries), credentials that never enter the container, and bounded time and disk.",
+  "acceptance": [
+    {
+      "text": "The agent can check out a repository at a ref in its sandbox and run its tests",
+      "done": false
+    },
+    {
+      "text": "Network access is limited to an allowlist and no credential is visible inside the container",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

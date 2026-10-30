@@ -1,5 +1,7 @@
 import { defineConfig, lazyPlugins } from "vite-plus";
 import { cloudflare } from "@cloudflare/vite-plugin";
 export default defineConfig({
-  plugins: lazyPlugins(() => [cloudflare({ configPath: "./wrangler.jsonc" })]),
+  // In-source tests (`if (import.meta.vitest)`) never reach a deployed Worker.
+  define: { "import.meta.vitest": "undefined" },
+  plugins: lazyPlugins(() => [cloudflare()]),
 });

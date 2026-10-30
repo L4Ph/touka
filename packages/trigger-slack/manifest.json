@@ -1,0 +1,49 @@
+{
+  "display_information": {
+    "name": "touka",
+    "description": "General-purpose remote agent. Mention it in a thread to hand it a task.",
+    "background_color": "#D9552B"
+  },
+  "features": {
+    "app_home": {},
+    "bot_user": {
+      "display_name": "touka",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "assistant:write",
+        "chat:write",
+        "chat:write.public",
+        "channels:history",
+        "channels:read",
+        "channels:join",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "mpim:history",
+        "mpim:read",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "files:read",
+        "files:write"
+      ]
+    }
+  },
+  "settings": {
+    "socket_mode_enabled": false,
+    "org_deploy_enabled": false,
+    "event_subscriptions": {
+      "request_url": "https://touka.example.invalid/triggers/slack",
+      "bot_events": ["app_mention", "message.channels", "message.groups"]
+    },
+    "token_rotation_enabled": false,
+    "app_level_token_rotation_enabled": false,
+    "is_mcp_enabled": false
+  }
+}

@@ -1,4 +1,4 @@
-## Mandarin
+## Touka
 
 Write repository prose, comments, issue text, and commit messages in English.
 

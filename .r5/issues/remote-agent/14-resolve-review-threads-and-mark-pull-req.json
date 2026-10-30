@@ -1,0 +1,17 @@
+{
+  "title": "Resolve review threads and mark pull requests ready for review",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "Both need the GitHub GraphQL API, which the connector does not call yet.",
+  "acceptance": [
+    {
+      "text": "The agent can resolve a review thread it has addressed",
+      "done": false
+    },
+    {
+      "text": "The agent can convert a draft pull request to ready for review",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

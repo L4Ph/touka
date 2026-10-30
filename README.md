@@ -1,6 +1,6 @@
-# Mandarin
+# Touka
 
-A general-purpose, durable remote agent for a private team, built on Cloudflare Workers with Pi Durable, pi-ai, and the Agents SDK. Mandarin is headless: external Triggers start work, and an authenticated HTTP API provides session controls.
+A general-purpose, durable remote agent for a private team, built on Cloudflare Workers with Pi Durable, pi-ai, and the Agents SDK. Touka is headless: external Triggers start work, and an authenticated HTTP API provides session controls.
 
 ## Development
 
@@ -8,8 +8,12 @@ Use Node 24.11+ and [Vite+](https://viteplus.dev/guide/). The project pins Vite+
 
 ```sh
 vp install
-vp run verify
+cp .env.example server/.env.local
+# Set TEAM_AUTH and the chosen model/provider credentials in server/.dev.vars.
+vp run dev
 ```
+
+Use the localhost URL printed by Vite+ (normally `http://localhost:5173`). Stop the server with Ctrl+C. This runs the Worker in workerd through the Cloudflare Vite plugin; there is no separate Node application server. Only secrets declared in `server/cloudflare.config.ts` receive `.dev.vars` values locally; add new provider credential or MCP header secret names to that list.
 
 `vp run verify` builds the agent Worker, runs all Vitest tests through `vp test`, and runs formatting, linting, and type checking through `vp check`. External LLM and service APIs are faked; workerd, SQLite, HTTP, and WebSocket boundaries run locally.
 
@@ -17,11 +21,28 @@ vp run verify
 vp run dev                   # Agent Worker on localhost
 vp run build                 # Build the Worker before runtime tests
 vp test                      # All tests
-vp test connector-mcp        # Filter tests by path
+vp test connector-mcp        # Filter by path; unit tests live in the source files they test
 vp check                     # Format, lint, and types
 ```
 
 Runtime tests read the built Worker, so rebuild after server changes. Test configuration lives in `vite.config.ts`; there is no separate Node test runner. CI uses `voidzero-dev/setup-vp` and the same `vp run verify` task.
+
+## Cloudflare toolchain
+
+`server/cloudflare.config.ts` is the typed configuration, using `cf/config` and Cloudflare Vite plugin v2 beta. The CLI and plugin beta versions are pinned in `server/package.json`. The plugin generates native Build Output under `server/.cloudflare/output/` and runtime types under `server/.cloudflare/types/`.
+
+```sh
+vp run verify                         # Build, all tests, format/lint/types
+vp run deploy:dry                     # Build and validate without uploading
+vp run deploy                         # Deploy with the project-local cf CLI
+# From server/: cf dev, cf build, cf deploy
+```
+
+`cf` only looks for `@cloudflare/vite-plugin` in `server/node_modules`, but npm hoists it to the repository root, so `server`'s `postinstall` links it back in. If `cf` reports the plugin as not installed, run `npm install` again.
+
+The account is `accountId` in `server/cloudflare.config.ts`. `vp run deploy` uploads `server/.env.local` as the Worker's secrets when it exists (a Worker that does not exist yet cannot take secrets in advance, and `cf workers secrets bulk` needs an existing Worker), and deploys without it otherwise, so later deploys keep the secrets already stored. Every server secret must be declared in `server/cloudflare.config.ts`; undeclared names never reach the Worker, and every declared one is required at deploy, so declare only the integrations in use. The `deploy` scripts do not take extra flags: a root `vp run` script inserts a `--` that makes `cf` ignore every flag after it, so call `vp -C server exec cf deploy <flags>` for anything else.
+
+Durable Object lifecycle is declared with `exports.durableObject` instead of migration tags. Nothing has been deployed yet, so class and export names are free to change; once a Worker is deployed with declarative exports, it cannot return to the legacy migration-array flow.
 
 ## Architecture
 
@@ -30,7 +51,7 @@ Runtime tests read the built Worker, so rebuild after server changes. Test confi
 - **Triggers** receive events, authenticate/filter them, map conversations, accept input durably, and route replies: `packages/trigger-{github,slack,discord,webhook}`.
 - **Tools** expose authorized Connector operations and isolated code execution to Pi: `server/src/tools/`.
 
-Tools use Connectors independently of the initiating Trigger. Trigger invocation does not automatically grant write access. [Connection contracts](docs/connections.md) describe dependency direction and reply delivery.
+Tools use Connectors independently of the initiating Trigger. Only the GitHub Trigger grants write tools (to allowlisted actors on configured repositories); Slack, Discord and Webhook grants come from server configuration. [Connection contracts](docs/connections.md) describe dependency direction and reply delivery.
 
 Hono remains the HTTP boundary for management routes, bearer authentication, request-size limits, and Trigger mounting. There is no Web UI, browser proxy, or authentication database.
 
@@ -42,7 +63,7 @@ Session access and outbound resource grants are separate. `GET /api/sessions` li
 
 ## Models
 
-Set `MODEL_PROVIDER` and `MODEL_ID` in server `.dev.vars` for defaults. pi-ai's bundled providers are registered directly; configure their documented server secret names, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GROQ_API_KEY`. AI Gateway is optional, never an implicit route or fallback.
+Set `model` in `server/touka.config.ts` for the default. pi-ai's bundled providers are registered directly; configure their documented server secret names, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GROQ_API_KEY`. AI Gateway is optional, never an implicit route or fallback.
 
 Register compatible endpoints with server-only `MODEL_PROVIDERS` JSON:
 
@@ -81,16 +102,16 @@ Not every pi-ai transport or ambient credential mechanism is supported by worker
 - **Slack:** mention-driven thread conversations through `slack-cloudflare-workers`, with workspace/actor policy and durable replies. [Slack Trigger setup](packages/trigger-slack/README.md).
 - **Discord:** signed HTTP Interactions through `discord-hono`, using `/ask prompt:<task>`. Ordinary channels share channel-scoped conversations; real threads use their thread ID. Gateway mentions, DMs, and implicit bot fallback are unsupported. [Discord Trigger setup](packages/trigger-discord/README.md).
 - **MCP:** Streamable HTTP discovery and calls through `mcp_list_tools` / `mcp_call_tool`. Configure `MCP_SERVERS`, secret-referenced headers, and explicit `mcp:<server>:<tool>` grants. Interactive OAuth, stdio/legacy SSE, resources, and prompts are unsupported. [MCP Connector setup](packages/connector-mcp/README.md).
-- **Sandbox:** isolated Python/JavaScript and file tools require explicit container provisioning. No host shell or application secrets are exposed. [Sandbox setup and limits](server/src/tools/sandbox/README.md).
+- **Sandbox:** isolated JavaScript (Node.js) and file tools run in a Cloudflare Container on the managed `cloudflare/debian-trixie` image, with best-effort workspace snapshots. No host shell or application secrets are exposed. [Sandbox setup and limits](server/src/tools/sandbox/README.md).
 
-`env.example` lists server settings. Credentials belong in `server/.dev.vars` locally or Worker secrets in production, never client-visible variables or chat messages.
+`.env.example` lists server settings. Credentials belong in `server/.env.local` locally or Worker secrets in production, never client-visible variables or chat messages.
 
 ## Machine Webhooks and operations
 
 Use a token and session from `TEAM_AUTH` to start or continue work:
 
 ```sh
-curl http://127.0.0.1:8787/triggers/webhook \
+curl http://localhost:5173/triggers/webhook \
   -H "Authorization: Bearer $AGENT_TOKEN" -H 'Content-Type: application/json' \
   -d '{"sessionId":"session-id","operationId":"stable-id","input":"Hello"}'
 ```
@@ -111,24 +132,6 @@ The endpoint returns 202 after durable acceptance, without waiting for model com
 | `GET /api/sessions/:id/events`                  | Read-only authenticated [WebSocket stream](docs/event-stream.md) |
 
 Operations expose `queued`, `running`, `parked`, `done`, or `unanswered`. Authenticated retry resumes parked tasks; unanswered is terminal and needs a new operation ID after configuration is fixed. Model changes affect the next call, not an in-flight request. Registered tools enforce explicit grants and conservative replay safety; code work stops at PR creation, not merge or deployment.
-
-For a standalone local core runtime, export operator settings first; Launch inherits the environment rather than reading `.dev.vars`:
-
-```sh
-vp run build
-vp -C server run launch       # Foreground, localhost:8787
-vp -C server run doctor       # Read-only health check
-vp -C server run drive        # Set AGENT_TOKEN and AGENT_SESSION first
-vp -C server run cleanup      # Stop only the managed runtime; preserve data
-```
-
-## Removing the former Web deployment
-
-Before migrating, record any former Web-only session IDs and add the required machine allowlists; Durable Objects cannot be globally enumerated after the index is removed. The `v4-remove-web-directory` migration deletes only the former `SessionDirectory` index and its data. Earlier migration tags and the `SESSIONS`, `TRIGGER_JOBS`, and `SANDBOX` namespaces remain unchanged; conversation history, jobs, models, and resource grants are retained. No deployment is performed by this source change.
-
-Legacy Web conversations need explicit `TEAM_AUTH.sessions` entries for management access. Continuing them through the Webhook requires the same persisted principal ID and resource set (typically principal `team-web` for Web-created work); a different grant is rejected with `execution_grant_conflict`. Do not reset or widen grants to migrate.
-
-Retire any previously deployed Web Worker and its named core service binding before deploying the headless core. Retire unused auth D1 resources and OAuth secrets separately. Removing source does not delete those remote resources.
 
 ## Limits
 

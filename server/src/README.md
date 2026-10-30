@@ -60,28 +60,34 @@ recovery text chosen by the trigger; do not claim a parked operation succeeded.
 
 ## Durable execution and outbox
 
-`TriggerJobs` is an exported SQLite DO, bound as `TRIGGER_JOBS`. The shared
-capability selects one object per trigger/session. Its RPC `accept()` validates
-and persists the whole job **and alarm transactionally** before returning
-`{accepted, operationId}`. Model work starts in the alarm, not the webhook request.
-Duplicate operation IDs with identical input/grant/reply return `accepted:false`;
-conflicting content returns `delivery_conflict`. The session separately dedupes
-Pi submissions, including a crash between submit and the outbox update.
+`PiDurable.accept()` is the durable accept. In one gate it validates the grant, submits
+to Pi (deduped by operation ID) and stores the reply record, then returns
+`{accepted, operationId}`. `executeTrigger` then sends a wake-up message
+`{sessionId, operationId}` to the `DELIVERY` Queue, even for a duplicate, so a crash
+between accept and send heals on the vendor's retry. Model work runs in Pi, not in
+the webhook request. Duplicate operation IDs with identical input/grant/reply return
+`accepted:false`; conflicting content returns `delivery_conflict`.
 
-States: queued → waiting → delivering → delivered/failed. `status(operationId)`
+The Queue consumer (`outbox.ts`) is a scheduler only: `claimDelivery` leases an
+attempt once the Pi operation is `done`/`unanswered`/`parked`, the trigger's `deliver`
+handler runs, and `finishDelivery` records the outcome. A message that must wait is
+re-sent with a delay and the old one acked, so retries do not consume the Queue's own
+`max_retries`. If the consumer fails, the message is retried by the platform.
+
+States: waiting → delivering → delivered/failed. `status(operationId)`
 returns state, attempts, next due and structured `{code, attempts}` failure, not
 prompt/reply data. RPC is internal; triggers must authenticate and authorize any
 HTTP status surface. There is no unauthenticated shared job endpoint.
 
-Limits: 100 retained jobs per trigger/session, max 24h active lifetime, one job
-per alarm, 1-second pending polls, 6 external delivery attempts, 20-second handler
+Limits: 100 retained records per agent, max 24h active lifetime, pending polls backed
+off from 1s to 5s, 6 external delivery attempts, 20-second handler
 deadline with an abort signal. Honor the signal: an ignored abort cannot cancel a
 remote side effect. Retry delays are 1/2/4/8/16 seconds (cap 60s), or the larger
 vendor delay capped at 1h. Full queues fail with `delivery_queue_full`; completed
-jobs retain dedupe receipts until lazily purged on acceptance after 24h. There is
+records retain dedupe receipts until lazily purged on acceptance after 24h. There is
 no global account quota; operators must rate-limit authenticated ingress too.
 
-Before every RPC/send, persist a wake; before a send, persist the consumed attempt.
+Before a send, the consumed attempt and a lease are persisted.
 A crash can leave a 21-second lease. A crash after the vendor accepts a reply but
 before local success commits **can duplicate the reply**. Use vendor idempotency
 keys when supported; never advertise exactly-once. After attempt 6 or 24h a job
@@ -97,19 +103,19 @@ new session when intentionally changing authority. Legacy queued operations cann
 receive tools retroactively. This is intentionally conservative instead of
 switching authority underneath concurrently queued Pi work.
 
-Server composes package exports, registration and durable binding. Packages never import `delivery.ts` or access `SESSIONS` directly. New trigger packages need no central export, binding or registry edits; `src/index.ts` supplies the handlers. GitHub, Slack and Discord Triggers use their independent Connector packages. See [dependency direction](../../docs/connections.md).
+Server composes package exports, registration and durable binding. Packages never import `ledger.ts`, `outbox.ts` or access `PI_DURABLE` directly. New trigger packages need no central export, binding or registry edits; `src/index.ts` supplies the handlers. GitHub, Slack and Discord Triggers use their independent Connector packages. See [dependency direction](../../docs/connections.md).
 
 ## Configuration (server-only, no embedded secrets)
 
-`Env` in `env.ts` is the shared binding contract. `wrangler.jsonc` exports/binds
-`SessionAgent`, `TriggerJobs`, and `SandboxSession`. Earlier migration tags remain
-unchanged; v4 deletes only the former Web directory namespace, not conversation data. Sandbox container provisioning remains explicit using
+`Env` in `env.ts` is the shared binding contract. `server/cloudflare.config.ts`
+declares and binds `PiDurable` and `SandboxContainer` as SQLite
+Durable Object exports, plus the `DELIVERY` Queue and its consumer trigger. Native exports replace migration tags. Sandbox container provisioning remains explicit using
 `tools/sandbox/README.md`; absent containers fail closed, never run on the host.
 
 | Name                                                                   | Contract                                                                                           |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `TEAM_AUTH`                                                            | Secret JSON members `{token,id,sessions,resources}`; fail closed                                   |
-| `MODEL_PROVIDER`, `MODEL_ID`                                           | Explicit pi-ai model selection                                                                     |
+| `model` in `touka.config.ts`                                           | Default pi-ai model; `MODEL_PROVIDER`/`MODEL_ID` env vars override it (tests)                      |
 | `MODEL_PROVIDERS`                                                      | Server-only `ProviderConfig[]` JSON; endpoints/models/auth secret names; see root README           |
 | SDK provider secret env names                                          | Arbitrary string Worker bindings resolved through pi-ai authContext; no fixed allowlist            |
 | `operator-providers.ts`                                                | Operator-owned typed SDK `Provider[]` registration for custom APIs/auth/metadata                   |
@@ -123,25 +129,23 @@ unchanged; v4 deletes only the former Web directory namespace, not conversation 
 | `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`                              | App ID and server-only PEM secret                                                                  |
 | `GITHUB_REPOSITORIES`                                                  | Exact JSON `owner/repo` → positive installation ID map shared by tools and trigger                 |
 | `GITHUB_ACTORS`, `GITHUB_BOT_LOGIN`                                    | Trigger-owned actor allowlist and self-reply filter configuration                                  |
-| `SESSIONS`, `TRIGGER_JOBS`, `SANDBOX`                                  | Private DO namespaces, never expose RPC publicly                                                   |
+| `PI_DURABLE`, `SANDBOX_CONTAINER`                                      | Private DO namespaces, never expose RPC publicly                                                   |
+| `DELIVERY`                                                             | Queue producer for reply wake-ups; consumed by this Worker                                         |
 
 Shared GitHub installation authentication is **one implementation** in
 `packages/connector-github`. `githubConnector(env)` serves Trigger replies and
 outbound Tools using the same environment-scoped cache. Its internal auth requests
-short-lived repository-scoped read/write/reply permissions in separate caches. Reply scope requests issues/PR write, not contents write. No caller chooses
+short-lived repository-scoped read/write/reply permissions in separate caches. Reply scope requests issues/PR write (comments and reactions), not contents write; `ci` and `workflow` scopes exist only for the operations that need them. No caller chooses
 arbitrary installation IDs or token URLs. GitHub Workers fetch uses `manual`
 redirect mode and rejects non-2xx, including redirects; Workers does not implement
 `redirect:'error'`. Do not create another App JWT/token implementation in a Trigger or Tool.
 
 ## Evidence
 
-`vp test test/delivery.test.ts` builds a new workspace-owned authenticated trigger into
-the unchanged real Worker, then drives actual local HTTP, PiHarness, SQLite DO
-alarms, in-flight send interruption/reopen, the real 20-second non-resolving handler
-deadline, 429/backoff, permanent failure, retry exhaustion, queue bounds and dedupe.
-A queued tool-using operation resumes after reopen without a new authorized submit;
-the real registered GitHub tool receives its persisted resource grant and logical
-session. A session-only principal is denied. Slack's real library rejects a successful
-ACK when the durable outbox binding is absent. Only the LLM, GitHub
-HTTP and reply vendor boundaries are deterministic fakes. No live LLM/vendor,
-production secrets, deployment, or exactly-once claim.
+Tests are unit tests that live in the source files they test (`if (import.meta.vitest)`); a build
+strips them. `vp test` runs them all, and `vp test connector-github` filters by path. They cover the
+reply ledger's rules, the Agent's grants and the sandbox runtime with a faked container, the GitHub
+and Slack connectors and triggers with HTTP faked at the boundary, and the model catalog. Nothing
+here starts a Worker or a container: Queue redelivery, retry timing, the consumer-to-PiDurable loop
+and what runs inside a container are exercised only on the real platform, and no exactly-once claim
+is made.

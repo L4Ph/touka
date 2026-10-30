@@ -1,3 +1,4 @@
+import type nodeAssert from "node:assert/strict";
 // Transport-independent IDs and control-plane envelopes. Trigger metadata stays outside input.
 export interface SubmitInput {
   sessionId: string;
@@ -61,4 +62,26 @@ export function isSubmitInput(value: unknown): value is SubmitInput {
     data.input.trim().length > 0 &&
     data.input.length <= LIMITS.inputCharacters
   );
+}
+
+if (import.meta.vitest) {
+  const { test } = import.meta.vitest;
+  const assert: typeof nodeAssert = (await import("node:assert/strict")).default;
+  const { isSubmitInput } = await import("@remote-agent/agent-contract");
+
+  test("core accepts only bounded transport-independent submissions", () => {
+    const input = { sessionId: "session-1", operationId: "op_1", input: "Explain this chart" };
+    assert.equal(isSubmitInput(input), true);
+    for (const invalid of [
+      null,
+      {},
+      { ...input, source: "slack" },
+      { ...input, input: " " },
+      { ...input, input: "x".repeat(16_001) },
+      { ...input, operationId: "../other" },
+      { ...input, sessionId: "s".repeat(129) },
+    ]) {
+      assert.equal(isSubmitInput(invalid), false);
+    }
+  });
 }
