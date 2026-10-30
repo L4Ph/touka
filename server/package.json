@@ -24,7 +24,7 @@
     "@remote-agent/trigger-github": "*",
     "@remote-agent/trigger-slack": "*",
     "@remote-agent/trigger-webhook": "*",
-    "agents": "^0.30.1",
+    "agents": "^0.32.0",
     "hono": "^4.13.14"
   },
   "devDependencies": {

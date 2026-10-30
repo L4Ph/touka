@@ -26,13 +26,12 @@ app.onError((error, c) => {
   return c.json({ error: { code: "internal_error" } }, 500);
 });
 app.notFound((c) => c.json({ error: { code: "not_found" } }, 404));
-app.use(
-  "*",
-  bodyLimit({
-    maxSize: LIMITS.requestBytes,
-    onError: (c) => c.json({ error: { code: "payload_too_large" } }, 413),
-  }),
-);
+const limit = bodyLimit({
+  maxSize: LIMITS.requestBytes,
+  onError: (c) => c.json({ error: { code: "payload_too_large" } }, 413),
+});
+// GitHub pull request payloads exceed this limit; that trigger bounds its own body (1 MiB) and verifies its signature.
+app.use("*", (c, next) => (c.req.path === "/triggers/github" ? next() : limit(c, next)));
 app.get("/health", (c) => c.json({ status: "ok", service: "remote-agent" }));
 app.use("/api/*", teamAuth);
 app.use("/api/sessions/:sessionId", sessionAccess);
