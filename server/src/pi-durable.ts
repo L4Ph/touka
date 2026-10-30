@@ -12,7 +12,8 @@ import { systemPrompt } from "./config";
 import { sessionModels, modelError, compactionOverrides, defaultModel } from "./models";
 import { PiHarness } from "agents/harness/pi";
 import { Lifecycle } from "agents/lifecycle";
-import { sessionStream } from "./stream";
+import { SessionStream } from "./stream";
+import { serial } from "./serial";
 import type { Env } from "./env";
 import type { Principal } from "@remote-agent/agent-contract";
 import { executionGrant } from "./execution";
@@ -38,18 +39,12 @@ import {
 } from "@remote-agent/agent-contract";
 
 export class PiDurable extends DurableObject<Env> {
-  private readonly connections = new Set<WebSocket>();
+  private readonly serialized = serial();
   private execution?: { sessionId: string; principal: Principal };
   /** The remote browser keeps its tabs and logins between turns; absent without the binding. */
   private readonly browser = this.env.BROWSER
     ? new Browser({ provider: browserRun(this.env.BROWSER) })
     : undefined;
-
-  async fetch(request: Request) {
-    return sessionStream(request, this.env, this.ctx, this.harness, this.connections, () =>
-      this.exists(),
-    );
-  }
 
   readonly harness = new PiHarness({
     harness: async ({ storage, context, onWake }) => {
@@ -143,12 +138,13 @@ export class PiDurable extends DurableObject<Env> {
       ...(config.thinkingLevel ? { thinkingLevel: config.thinkingLevel } : {}),
     },
   });
+  readonly stream = new SessionStream(this.ctx, this.env, this.harness, () => this.exists());
   readonly lifecycle = this.browser
-    ? Lifecycle.install(this).use(this.browser).use(this.harness)
-    : Lifecycle.install(this).use(this.harness);
+    ? Lifecycle.install(this).use(this.browser).use(this.harness).use(this.stream)
+    : Lifecycle.install(this).use(this.harness).use(this.stream);
 
   async submit(input: SubmitInput, principal: Principal): Promise<SubmitReceipt | null> {
-    return this.ctx.blockConcurrencyWhile(() => this.enqueue(input, principal));
+    return this.serialized(() => this.enqueue(input, principal));
   }
 
   private async enqueue(
@@ -181,7 +177,7 @@ export class PiDurable extends DurableObject<Env> {
 
   /** Trigger entry: submit to Pi and record the reply destination in one gate. */
   async accept({ trigger, input, principal, reply }: TriggerExecution) {
-    return this.ctx.blockConcurrencyWhile(async () => {
+    return this.serialized(async () => {
       const grant = executionGrant(input.sessionId, principal);
       const jobs = ledger(this.ctx.storage);
       const existing = await jobs.get(input.operationId);
@@ -225,7 +221,7 @@ export class PiDurable extends DurableObject<Env> {
 
   /** Queue consumer step 1: lease the next reply attempt, or say how long to wait. */
   async claimDelivery(operationId: string, polls: number) {
-    return this.ctx.blockConcurrencyWhile(async () => {
+    return this.serialized(async () => {
       const jobs = ledger(this.ctx.storage);
       const job = await jobs.get(operationId);
       if (!job || jobs.terminal(job)) return { action: "stop" } as const;
@@ -254,7 +250,7 @@ export class PiDurable extends DurableObject<Env> {
 
   /** Queue consumer step 2: record the vendor outcome and say when to retry. */
   async finishDelivery(operationId: string, outcome: DeliveryResult) {
-    return this.ctx.blockConcurrencyWhile(async () => {
+    return this.serialized(async () => {
       const jobs = ledger(this.ctx.storage);
       const job = await jobs.get(operationId);
       if (!job || job.state !== "delivering") return { action: "stop" } as const;
@@ -315,7 +311,7 @@ export class PiDurable extends DurableObject<Env> {
   }
 
   async create(model?: ModelSelection) {
-    return this.ctx.blockConcurrencyWhile(async () => {
+    return this.serialized(async () => {
       if (await this.exists()) return { error: "session_exists" };
       const selection = model ?? defaultModel(this.env);
       const error = await modelError(this.env, selection);

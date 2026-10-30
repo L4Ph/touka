@@ -71,7 +71,7 @@ export class SandboxContainer extends DurableObject {
       stderr: "ignore",
     });
     // The workspace outlives the container only through a snapshot, taken when the daemon ends.
-    void daemon.exitCode.then(() => this.snapshot()).catch(() => {});
+    this.ctx.waitUntil(daemon.exitCode.then(() => this.snapshot()).catch(() => {}));
     return { stdin: daemon.stdin!, stdout: daemon.stdout! };
   }
 
