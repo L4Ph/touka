@@ -4,7 +4,7 @@ A headless, durable remote agent that runs on Cloudflare Workers. Slack, GitHub,
 
 Built on Pi Durable, pi-ai and Cloudflare Containers.
 
-The name 橙夏 (*tōka*, "orange summer") comes from the orange of Cloudflare and the summer heat of its "flare", with a nod to Hono (炎, "flame").
+The name 橙夏 (_tōka_, "orange summer") comes from the orange of Cloudflare and the summer heat of its "flare", with a nod to Hono (炎, "flame").
 
 ## Run it
 

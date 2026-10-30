@@ -10,9 +10,12 @@
     "postinstall": "test -e node_modules/@cloudflare/vite-plugin/package.json || (mkdir -p node_modules/@cloudflare && ln -s ../../../node_modules/@cloudflare/vite-plugin node_modules/@cloudflare/vite-plugin)"
   },
   "dependencies": {
+    "@cloudflare/codemode": "^0.5.6",
     "@earendil-works/chord": "~1.4.0",
     "@earendil-works/pi-ai": "~1.4.0",
+    "@earendil-works/pi-codemode": "^1.4.0",
     "@earendil-works/pi-durable": "~1.4.0",
+    "@earendil-works/pi-env": "^1.4.0",
     "@remote-agent/agent-contract": "*",
     "@remote-agent/connector-github": "*",
     "@remote-agent/connector-mcp": "*",

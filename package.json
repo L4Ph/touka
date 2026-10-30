@@ -15,7 +15,7 @@
     "check": "vp check",
     "verify": "vp run build && vp test && vp check",
     "preview": "vp -C server preview",
-    "deploy": "vp -C server exec sh -c 'if [ -f .env.local ]; then cf deploy --secrets-file .env.local; else cf deploy; fi'",
+    "deploy": "vp -C packages/codemode-sandbox exec cf deploy && vp -C server exec sh -c 'if [ -f .env.local ]; then cf deploy --secrets-file .env.local; else cf deploy; fi'",
     "deploy:dry": "vp -C server exec sh -c 'if [ -f .env.local ]; then cf deploy --dry-run --secrets-file .env.local; else cf deploy --dry-run; fi'"
   },
   "devDependencies": {

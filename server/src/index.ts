@@ -7,7 +7,8 @@ import { mountTriggers } from "./plugins";
 import { modelCatalog } from "./models";
 import { consume } from "./outbox";
 export { PiDurable } from "./pi-durable";
-export { SandboxContainer } from "./tools/sandbox/worker";
+export { SandboxContainer } from "./sandbox/container";
+export { GitHubEgress } from "./sandbox/egress";
 
 const app = new Hono<AppEnv>();
 app.onError((error, c) => {

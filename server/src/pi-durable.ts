@@ -17,6 +17,14 @@ import type { Env } from "./env";
 import type { Principal } from "@remote-agent/agent-contract";
 import { executionGrant } from "./execution";
 import { installTools } from "./tools";
+import { sandbox } from "./sandbox/env";
+import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
+import { RemoteCodemodeSandbox } from "@earendil-works/pi-codemode/portable";
+import { createCodingTools } from "@earendil-works/pi-durable/tools";
+import { Browser, browserRun } from "agents/browser";
+import { browserTool } from "agents/browser/pi";
+import { webSearchTool } from "agents/websearch/pi";
+import { webFetchTool } from "agents/webfetch/pi";
 import { ledger, backoff, DELIVERY_LIMITS } from "./ledger";
 import type { TriggerExecution, DeliveryResult } from "@remote-agent/trigger-contract";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -32,6 +40,10 @@ import {
 export class PiDurable extends DurableObject<Env> {
   private readonly connections = new Set<WebSocket>();
   private execution?: { sessionId: string; principal: Principal };
+  /** The remote browser keeps its tabs and logins between turns; absent without the binding. */
+  private readonly browser = this.env.BROWSER
+    ? new Browser({ provider: browserRun(this.env.BROWSER) })
+    : undefined;
 
   async fetch(request: Request) {
     return sessionStream(request, this.env, this.ctx, this.harness, this.connections, () =>
@@ -75,12 +87,48 @@ export class PiDurable extends DurableObject<Env> {
           return execution()?.principal ?? { id: "unbound", sessions: [], resources: [] };
         },
       });
+      // Pi's own file and shell tools, run inside the session's container.
+      const box = sandbox({
+        env: this.env,
+        get sessionId() {
+          return execution()?.sessionId ?? "";
+        },
+        get principal() {
+          return execution()?.principal ?? { id: "unbound", sessions: [], resources: [] };
+        },
+      });
+      registry.install(createCodingTools());
+      const web = [
+        ...(this.env.AI
+          ? [
+              webSearchTool({ binding: this.env.AI, provider: "exa" }),
+              webFetchTool({ binding: this.env.AI }),
+            ]
+          : []),
+        ...(this.browser && this.env.LOADER
+          ? [browserTool({ browser: this.browser, loader: this.env.LOADER })]
+          : []),
+      ];
+      registry.install({ name: "web", tools: web });
+      // Scripts call the tools above as `tools.<name>()`; the VM itself runs in its own Worker.
+      const codemode = this.env.CODEMODE_SANDBOX;
+      const session = () => execution()?.sessionId ?? "";
+      if (codemode)
+        registry.install(
+          createCodemodeExtension({
+            sandbox: new RemoteCodemodeSandbox({
+              timeoutMs: 120_000,
+              remote: () => codemode.getByName(session()),
+            }),
+          }),
+        );
       return Harness.open(
         storage,
         {
           models,
           registry,
           onWake,
+          env: () => box.env(),
           settings: {
             retry: { enabled: true, ...config.retry },
             restartLimit: config.restartLimit,
@@ -95,7 +143,9 @@ export class PiDurable extends DurableObject<Env> {
       ...(config.thinkingLevel ? { thinkingLevel: config.thinkingLevel } : {}),
     },
   });
-  readonly lifecycle = Lifecycle.install(this).use(this.harness);
+  readonly lifecycle = this.browser
+    ? Lifecycle.install(this).use(this.browser).use(this.harness)
+    : Lifecycle.install(this).use(this.harness);
 
   async submit(input: SubmitInput, principal: Principal): Promise<SubmitReceipt | null> {
     return this.ctx.blockConcurrencyWhile(() => this.enqueue(input, principal));

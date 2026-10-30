@@ -24,7 +24,7 @@ const secretNames = [
   "GITHUB_BOT_LOGIN",
 ] as const;
 
-// JavaScript runs here, offline, on the Cloudflare-managed `cloudflare/debian-trixie` image that the
+// JavaScript runs here, on the Cloudflare-managed `cloudflare/debian-trixie` image that the
 // Durable Object names when it starts the container, so no named image or Dockerfile is declared.
 const sandbox = defineContainer({
   name: "touka-sandbox",
@@ -42,6 +42,8 @@ export default defineConfig({
     exports: {
       PiDurable: exports.durableObject({ storage: "sqlite" }),
       SandboxContainer: exports.durableObject({ storage: "sqlite", container: sandbox }),
+      // Every request the container makes goes through here; it is the only holder of GitHub credentials.
+      GitHubEgress: exports.worker(),
     },
     // One message per wake: delivery state is in the PiDurable, the queue only schedules attempts.
     triggers: [
@@ -50,6 +52,13 @@ export default defineConfig({
     env: {
       PI_DURABLE: bindings.durableObject({ worker: name, exportName: "PiDurable" }),
       DELIVERY: bindings.queue<Wake>({ name: deliveryQueue }),
+      CODEMODE_SANDBOX: bindings.durableObject({
+        worker: "touka-codemode",
+        exportName: "CodemodeSandbox",
+      }),
+      AI: bindings.ai(),
+      BROWSER: bindings.browser(),
+      LOADER: bindings.workerLoader(),
       SANDBOX_CONTAINER: bindings.durableObject({ worker: name, exportName: "SandboxContainer" }),
       ...Object.fromEntries(secretNames.map((secretName) => [secretName, bindings.secret()])),
     },

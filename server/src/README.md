@@ -110,7 +110,7 @@ Server composes package exports, registration and durable binding. Packages neve
 `Env` in `env.ts` is the shared binding contract. `server/cloudflare.config.ts`
 declares and binds `PiDurable` and `SandboxContainer` as SQLite
 Durable Object exports, plus the `DELIVERY` Queue and its consumer trigger. Native exports replace migration tags. Sandbox container provisioning remains explicit using
-`tools/sandbox/README.md`; absent containers fail closed, never run on the host.
+`sandbox/README.md`; absent containers fail closed, never run on the host.
 
 | Name                                                                   | Contract                                                                                           |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |

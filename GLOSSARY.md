@@ -35,4 +35,4 @@ An operation explicitly exposed to the agent, including Connector operations and
 
 - `PiDurable` (`PI_DURABLE`): one session's Pi conversation, execution grant, pending input and event stream. One thread maps to one instance.
 - `DELIVERY`: a Cloudflare Queue whose consumer is the same Worker. Each message only wakes a reply attempt for one operation; the reply record (destination, attempts, failure) lives in the `PiDurable` that answers it. It is not the Trigger itself; Triggers are ordinary Worker routes.
-- `SandboxContainer` (`SANDBOX_CONTAINER`): container coordination for isolated JavaScript execution on the managed Node image, with best-effort workspace snapshots.
+- `SandboxContainer` (`SANDBOX_CONTAINER`): the per-session Linux container behind Pi Durable's `read`, `write`, `edit` and `bash`, with open outbound internet, GitHub credentials added only by `GitHubEgress`, and best-effort workspace snapshots.

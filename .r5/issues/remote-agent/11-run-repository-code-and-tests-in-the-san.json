@@ -2,7 +2,7 @@
   "title": "Run repository code and tests in the sandbox",
   "category": "enhancement",
   "state": "needs-triage",
-  "what": "The sandbox is offline and has no checkout, so the agent cannot build or test what it changes. Design a checkout with an allowlisted network (the git host and package registries), credentials that never enter the container, and bounded time and disk.",
+  "what": "Implemented: the container has open internet, Pi read/write/edit/bash run in it, and GitHub credentials are added only by GitHubEgress. Left: confirm on the deployed Worker that the daemon installs, TLS interception works for git and gh, and a clone, test run and push succeed; then remove the github_* tools that git and gh now replace.",
   "acceptance": [
     {
       "text": "The agent can check out a repository at a ref in its sandbox and run its tests",

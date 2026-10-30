@@ -1,0 +1,18 @@
+{
+  "name": "@remote-agent/codemode-sandbox",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vp build",
+    "postinstall": "test -e node_modules/@cloudflare/vite-plugin/package.json || (mkdir -p node_modules/@cloudflare && ln -s ../../../../node_modules/@cloudflare/vite-plugin node_modules/@cloudflare/vite-plugin)"
+  },
+  "dependencies": {
+    "@earendil-works/pi-codemode": "~1.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.v.8",
+    "cf": "1.0.0-beta.26",
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+    "vite-plus": "1.4.0"
+  }
+}
