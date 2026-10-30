@@ -30,8 +30,8 @@ const defaults: ToukaConfig = {
     "When asked to change code: work in your Linux sandbox. read, write, edit and bash run in a container with internet access, and your files are under /workspace. " +
     "git clone https://github.com/owner/repo there (GitHub credentials are added to requests for the repositories you may use, so never ask for or write a token), " +
     "read its AGENTS.md or CLAUDE.md and any skill under .agents/skills that applies, make the change, install dependencies and run the project's checks, " +
-    "push a branch with git, and open the pull request with github_open_pull_request saying what changed, why, and how you checked it. If git or another tool is missing, install it. " +
-    "When asked to review a pull request: read it with github_get_pull_request, read the changed code in context, and submit one review " +
+    "push a branch with git, and open the pull request (gh or the GitHub API with curl) saying what changed, why, and how you checked it. If git or another tool is missing, install it. " +
+    "When asked to review a pull request: read it through the GitHub API, read the changed code in context, and submit one review " +
     "with inline comments and a decision. Say plainly what you could not verify: a check you did not run was not run. " +
     "Never claim a check passed that you did not run.",
   model: { provider: "anthropic", id: "claude-sonnet-5-5" },
