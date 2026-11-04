@@ -1,0 +1,29 @@
+{
+  "title": "Add reusable knowledge skills and repository understanding",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Implement scoped skills, cross-session memory, correction and deletion, repository indexing and codebase answers as distinct user-facing behaviors. Session transcripts alone do not satisfy these capabilities.",
+  "acceptance": [
+    {
+      "text": "Relevant repository skills and instructions are discovered and applied with provenance",
+      "done": false
+    },
+    {
+      "text": "An authorized correction is available in a new session and can be removed",
+      "done": false
+    },
+    {
+      "text": "Knowledge from one resource scope does not leak to another",
+      "done": false
+    },
+    {
+      "text": "Codebase answers cite current repository evidence without starting an editing task",
+      "done": false
+    },
+    {
+      "text": "Acceptance covers stale indexes, revocation and deleted knowledge",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

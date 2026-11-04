@@ -1,0 +1,29 @@
+{
+  "title": "Make repository environments ready and recoverable",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Replace repeated ad hoc setup with reproducible repository environment provisioning, readiness checks and recoverable workspaces. Diagnose the live apt and git timeouts before selecting a fix; retain additional OS and self-hosted environment requirements in the parity inventory.",
+  "acceptance": [
+    {
+      "text": "A cold session reaches a verified clone and repository test run with required tools installed",
+      "done": false
+    },
+    {
+      "text": "Repeated setup or network failures become visible bounded waiting states",
+      "done": false
+    },
+    {
+      "text": "A restart preserves or restores verified workspace state without replaying unsafe writes",
+      "done": false
+    },
+    {
+      "text": "Warm-start and cold-start timings are measured with a regression check",
+      "done": false
+    },
+    {
+      "text": "Unsupported OS or infrastructure requirements are explicit and remain tracked",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

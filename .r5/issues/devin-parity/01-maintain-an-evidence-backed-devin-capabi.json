@@ -1,0 +1,21 @@
+{
+  "title": "Maintain an evidence-backed Devin capability inventory",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Track full Devin functional parity rather than equating progress notifications with completion. Expand the official Cloud, API and Desktop documentation catalogs into behavioral acceptance scenarios; retain deferred Web and environment capabilities. The baseline and completion contract live in docs/devin-parity.md.",
+  "acceptance": [
+    {
+      "text": "Every official capability is mapped to a Touka scenario, status, owner ticket and source revision",
+      "done": false
+    },
+    {
+      "text": "Unknown and infrastructure-blocked capabilities remain visible instead of being marked supported",
+      "done": false
+    },
+    {
+      "text": "Each claimed capability has a passing executable check and appropriate live evidence",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

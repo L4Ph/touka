@@ -1,0 +1,25 @@
+{
+  "title": "Deliver remaining integration and platform capability families",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Expand the parity inventory into executable tickets for additional SCM, issue trackers, communication and incident integrations; API and external-agent handoff; analysis, review and security workflows; enterprise identity, secrets, audit and usage controls; CLI/Desktop, voice and multi-OS execution. Prioritizing Slack, GitHub and Notion must not erase these requirements.",
+  "acceptance": [
+    {
+      "text": "Each inventory family has concrete behavior-level tickets and dependencies before implementation",
+      "done": false
+    },
+    {
+      "text": "Supported integrations pass real authentication, read/write, retry and revocation checks",
+      "done": false
+    },
+    {
+      "text": "Infrastructure and account blockers identify the exact prerequisite and do not block unrelated authorized work",
+      "done": false
+    },
+    {
+      "text": "No family is declared complete from tool availability or mocks alone",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

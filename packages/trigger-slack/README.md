@@ -6,7 +6,7 @@ Independent npm workspace package. `src/index.ts` exports `create` and `deliver`
 
 - `SLACK_SIGNING_SECRET`: app signing secret.
 - `SLACK_ADMIN_TOKEN`: strong independent operator credential for delivery status.
-- `SLACK_WORKSPACES`: secret JSON array of `{id, actors, botUserId, token, resources?}`. Workspace and human actor must match. `resources` defaults to empty (no tools); only server configuration grants resources, e.g. `github:owner/repo:read`. Workspace identity owns a shared thread conversation. Tokens must never enter model prompts, API responses, or logs.
+- `SLACK_WORKSPACES`: secret JSON array of `{id, actors, botUserId, token, resources?}`. Workspace must match. Set `actors: "*"` to accept every human sender in that workspace, or use an explicit user-ID array to restrict access. Bot/self events remain ignored, and workspace-wide access does not expand resource grants. `resources` defaults to empty (no tools); only server configuration grants resources, e.g. `github:owner/repo:read`. Workspace identity owns a shared thread conversation. Tokens must never enter model prompts, API responses, or logs.
 
 Signed app mentions map workspace/channel/thread deterministically to a session. Bot/subtype/self events are ignored. Input contains only mention-stripped text, with normalized line endings. Source metadata is stored only in the outbox reply destination. Duplicate identical deliveries return `accepted:false`; conflicting reused IDs are rejected rather than replacing input.
 
@@ -27,7 +27,7 @@ Without `TOUKA_URL` the placeholder `https://touka.example.invalid` is sent, whi
 Besides `app_mention`, the app subscribes to `message.channels` and `message.groups` and needs the `channels:history` and `groups:history` scopes (adding scopes means reinstalling the app). Slack delivers these over the same HTTP Request URL as every other event; Socket Mode is not needed.
 
 - A mention in a thread is answered as before, with the people's messages since the agent last replied added in front (the whole thread when it has not spoken yet). History is context, so an unreadable thread is treated as empty rather than refused.
-- A message in a thread **without** a mention is answered only when the agent already has a conversation for that thread, the sender is in `actors`, and a small classifier (`followUp` in `server/touka.config.ts`) judges the message to be meant for the agent. Anything else is acknowledged and ignored. A classifier failure counts as "not meant for the agent".
+- A message in a thread **without** a mention is answered only when the agent already has a conversation for that thread, the sender is permitted by `actors` (including `"*"`), and a small classifier (`followUp` in `server/touka.config.ts`) judges the message to be meant for the agent. Anything else is acknowledged and ignored. A classifier failure counts as "not meant for the agent".
 - The mention itself also arrives as a message event; that copy is ignored so a mention is never handled twice.
 
 ## ACK contract

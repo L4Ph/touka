@@ -1,7 +1,7 @@
 {
   "title": "Show live progress while the agent works",
   "category": "enhancement",
-  "state": "needs-triage",
+  "state": "ready-for-agent",
   "what": "Slack and GitHub show nothing between acceptance and the final reply. Post one status message and edit it as the run goes (current tool, plan), without exceeding Slack and GitHub rate limits.",
   "acceptance": [
     {

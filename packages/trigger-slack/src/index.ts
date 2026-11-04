@@ -115,18 +115,20 @@ export function create({
         event.user === workspace.botUserId
       )
         return reply({ ignored: true });
+      const allowed =
+        id(event.user) && (workspace.actors === "*" || workspace.actors.includes(event.user));
       // Thread messages without a mention: only people who may use the agent, in threads it is part of.
       // The mention itself also arrives as a message event; the app_mention event handles that one.
       if (!mention) {
         if (
-          !workspace.actors.includes(event.user) ||
+          !allowed ||
           typeof event.text !== "string" ||
           event.text.includes(`<@${workspace.botUserId}>`) ||
           event.thread_ts === undefined ||
           event.thread_ts === event.ts
         )
           return reply({ ignored: true });
-      } else if (!workspace.actors.includes(event.user)) return reply({ error: "forbidden" }, 403);
+      } else if (!allowed) return reply({ error: "forbidden" }, 403);
       if (
         !id(body.event_id) ||
         !id(event.channel) ||
@@ -238,7 +240,17 @@ if (import.meta.vitest) {
     { type: "message", user: "U1", text: "so we should clear it?", ts: "10.000004" },
   ];
 
-  function setup({ exists = true, addressed = true, refuse = "" } = {}) {
+  function setup({
+    exists = true,
+    addressed = true,
+    refuse = "",
+    actors = ["U1"],
+  }: {
+    exists?: boolean;
+    addressed?: boolean;
+    refuse?: string;
+    actors?: string[] | "*";
+  } = {}) {
     const executed: TriggerExecution[] = [];
     const calls = { slack: 0, classified: 0 };
     const reactions: string[] = [];
@@ -272,10 +284,10 @@ if (import.meta.vitest) {
       },
     };
     const app = create(deps);
-    const send = async (event: Record<string, unknown>, eventId = "Ev1") => {
+    const send = async (event: Record<string, unknown>, eventId = "Ev1", team = "T1") => {
       const raw = JSON.stringify({
         type: "event_callback",
-        team_id: "T1",
+        team_id: team,
         event_id: eventId,
         event: { channel: "C1", ts: "10.000004", ...event },
       });
@@ -292,7 +304,12 @@ if (import.meta.vitest) {
             "x-slack-signature": signature,
           },
         },
-        env,
+        {
+          ...env,
+          SLACK_WORKSPACES: JSON.stringify([
+            { id: "T1", actors, botUserId: "B1", token: "xoxb-test", resources: [] },
+          ]),
+        },
       );
       return { status: response.status, body: await response.json() };
     };
@@ -322,6 +339,25 @@ if (import.meta.vitest) {
     });
   });
 
+  test("workspace-wide access accepts other people's mentions and follow-ups, but not other workspaces or bots", async () => {
+    const { send, executed } = setup({ actors: "*" });
+    const mention = { type: "app_mention", user: "U9", text: "<@B1> help" };
+    assert.deepEqual((await send(mention)).body, { eventId: "Ev1", accepted: true });
+    assert.deepEqual((await send({ ...reply, user: "U9" }, "Ev2")).body, {
+      eventId: "Ev2",
+      accepted: true,
+    });
+    assert.equal((await send(mention, "Ev3", "T9")).status, 403);
+    assert.deepEqual((await send({ ...mention, bot_id: "BOT" })).body, { ignored: true });
+    assert.deepEqual((await send({ ...mention, user: "B1" })).body, { ignored: true });
+    assert.equal((await send({ ...mention, user: undefined })).status, 403);
+    assert.equal(executed.length, 2);
+    assert.deepEqual(
+      executed.map((request) => request.principal.resources),
+      [[], []],
+    );
+  });
+
   test("a thread message the classifier says is not for the agent is left alone", async () => {
     const { send, executed } = setup({ addressed: false });
     assert.deepEqual((await send(reply)).body, { ignored: true });
@@ -347,6 +383,7 @@ if (import.meta.vitest) {
       "someone outside the allowlist is silently ignored, not refused",
     );
     assert.deepEqual(stranger.body, { ignored: true });
+    assert.equal((await send({ type: "app_mention", user: "U9", text: "<@B1> help" })).status, 403);
     assert.equal(calls.classified + executed.length, 0);
   });
 

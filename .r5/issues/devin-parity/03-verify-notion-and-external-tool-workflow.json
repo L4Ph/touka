@@ -1,0 +1,29 @@
+{
+  "title": "Verify Notion and external tool workflows end to end",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Support real Notion search, page and database reads, authorized writes and context-to-code workflows through the Connector/MCP boundary. Implement the required authentication lifecycle and personal/shared connection semantics; do not treat a configured URL as a working integration.",
+  "acceptance": [
+    {
+      "text": "A Slack request can locate an authorized Notion specification and use it in a GitHub task",
+      "done": false
+    },
+    {
+      "text": "Authorized page updates preserve existing content and report the resulting link",
+      "done": false
+    },
+    {
+      "text": "Missing access, expired authentication and rate limits are explained without leaking credentials",
+      "done": false
+    },
+    {
+      "text": "Cross-workspace resource access and unauthorized writes are rejected",
+      "done": false
+    },
+    {
+      "text": "Live verification uses a dedicated test page with cleanup and no production document damage",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

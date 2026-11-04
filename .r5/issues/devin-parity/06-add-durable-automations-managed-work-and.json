@@ -1,0 +1,33 @@
+{
+  "title": "Add durable automations managed work and bounded recovery",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Support event and scheduled automations, isolated child sessions, coordinator results, incident and scan workflows, and explicit cost/retry limits. Reuse existing GitHub lifecycle and deployment tickets instead of duplicating them.",
+  "acceptance": [
+    {
+      "text": "Schedules handle time zones, duplicate delivery, pause and cancellation",
+      "done": false
+    },
+    {
+      "text": "An event starts at most one logical automation run across retries",
+      "done": false
+    },
+    {
+      "text": "Child sessions have isolated workspaces and scoped credentials",
+      "done": false
+    },
+    {
+      "text": "The coordinator observes child completion or requests for help and resumes after restart",
+      "done": false
+    },
+    {
+      "text": "Budgets and repeated failures stop escalation and notify participants",
+      "done": false
+    },
+    {
+      "text": "Merge and deployment actions use explicit authorization and recovery rather than implicit permission",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

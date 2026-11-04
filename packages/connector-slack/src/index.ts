@@ -4,7 +4,7 @@ export interface SlackEnv {
 }
 type Workspace = {
   id: string;
-  actors: string[];
+  actors: string[] | "*";
   botUserId: string;
   token: string;
   resources?: string[];
@@ -22,10 +22,11 @@ function workspaces(env: SlackEnv): Workspace[] {
         id(w?.botUserId) &&
         typeof w?.token === "string" &&
         w.token.length > 0 &&
-        Array.isArray(w.actors) &&
-        w.actors.length > 0 &&
-        w.actors.length <= 1000 &&
-        w.actors.every(id) &&
+        (w.actors === "*" ||
+          (Array.isArray(w.actors) &&
+            w.actors.length > 0 &&
+            w.actors.length <= 1000 &&
+            w.actors.every(id))) &&
         (w.resources === undefined ||
           (Array.isArray(w.resources) &&
             w.resources.length <= 100 &&

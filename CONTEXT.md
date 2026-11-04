@@ -2,7 +2,7 @@
 
 ## Agreed product scope
 
-A general-purpose remote agent, not a coding-only bot. Pi Durable owns the execution loop, pi-ai owns model access, and the Cloudflare Agents SDK PiHarness/Lifecycle runs it durably in a Durable Object. Slack mentions, GitHub bot mentions, Discord interactions, and authenticated Webhooks can initiate work. Touka is headless. Coding workflows stop at pull requests; deployment operations are out of scope. Cloudflare OS is explicitly not a reference implementation or parity target for this mission.
+A general-purpose remote agent, not a coding-only bot. Pi Durable owns the execution loop, pi-ai owns model access, and the Cloudflare Agents SDK PiHarness/Lifecycle runs it durably in a Durable Object. Slack mentions, GitHub bot mentions, Discord interactions, and authenticated Webhooks can initiate work. The owner's 2026-11-04 direction expands the product goal to functional parity with Devin across all capabilities, with Slack, GitHub, and Notion mandatory. The current implementation is headless; a Web application is deferred, not excluded. PR-only coding workflows are the current implementation boundary, not the ultimate scope: deployment, approval, and recovery capabilities belong in the parity roadmap. Cloudflare OS remains unrelated. See `docs/devin-parity.md` for the dated primary-source inventory, gaps, and completion contract; none of this implies parity has already been achieved.
 
 ## Architecture decisions
 
@@ -35,7 +35,7 @@ The user stopped r5 worker orchestration because it was too slow. Continue imple
 
 MCP is an operator-configured Connector, not a Trigger. `connector-mcp` uses the official MCP SDK v2 Streamable HTTP client with fresh per-operation connections; Pi tools list/call only explicitly granted server tools. No second Agent/AI SDK execution loop. Endpoints and header-secret references live in `MCP_SERVERS`; resource grants use `mcp:<server>:<tool>`. Interactive MCP OAuth and legacy SSE/stdio are not implemented. See `packages/connector-mcp/README.md`.
 
-Mission plan: `docs/mission.md`. Local tickets: `.r5/issues/`. Runtime task ledger: `.r5/ledger.jsonl` (not committed). All repository documentation, comments, issues, code, model prompts, and commit messages use English. Conversation follows the user's language. Keep changes within the agreed headless scope; add no speculative OS/gadget abstractions.
+Mission plan: `docs/mission.md`. Local tickets: `.r5/issues/`. Runtime task ledger: `.r5/ledger.jsonl` (not committed). All repository documentation, comments, issues, code, model prompts, and commit messages use English. Conversation follows the user's language. Implement the Devin parity program incrementally, starting with reachable, observable headless sessions and integrations; defer the Web surface as requested. Keep later capability families visible in the inventory rather than treating the first milestone as parity completion. Add no speculative OS/gadget abstractions.
 
 ## Primary sources
 

@@ -1,0 +1,33 @@
+{
+  "title": "Keep conversations responsive during active execution",
+  "category": "enhancement",
+  "state": "ready-for-agent",
+  "what": "Allow Slack participants to ask read-only side questions, inspect status, steer work and explicitly stop or resume it while a long-running operation is active. Keep control requests independent of the active tool call, and use Pi Durable rather than a second execution loop.",
+  "acceptance": [
+    {
+      "text": "A status or side question receives an answer before a gated long-running tool finishes",
+      "done": false
+    },
+    {
+      "text": "Read-only side answers cannot edit files or mutate the running task",
+      "done": false
+    },
+    {
+      "text": "Steering reaches the active operation at a safe boundary rather than silently becoming a separate queued task",
+      "done": false
+    },
+    {
+      "text": "Stop and resume report their real execution state and preserve completed side effects",
+      "done": false
+    },
+    {
+      "text": "Different authorized workspace members can participate in the same thread",
+      "done": false
+    },
+    {
+      "text": "Restart and duplicate events do not lose instructions or create duplicate work",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}

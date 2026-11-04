@@ -1,0 +1,29 @@
+{
+  "title": "Build the deferred Web workspace on the shared control plane",
+  "category": "enhancement",
+  "state": "needs-triage",
+  "what": "After headless collaboration is reliable, add the planned Web surface: session discovery and conversation, progress and artifacts, shell/IDE/browser visibility and safe takeover, integration setup and administration. The Web application must use the same execution and authorization model as Slack and GitHub.",
+  "acceptance": [
+    {
+      "text": "Web and external threads observe the same operation and conversation state",
+      "done": false
+    },
+    {
+      "text": "Authenticated users can inspect progress, artifacts and control execution without a second agent loop",
+      "done": false
+    },
+    {
+      "text": "Interactive takeover prevents conflicting agent edits and supports safe resume",
+      "done": false
+    },
+    {
+      "text": "Integration and administration flows expose real configuration and authorization status",
+      "done": false
+    },
+    {
+      "text": "Keyboard-accessible UI and headless end-to-end tests verify reconnect and error recovery",
+      "done": false
+    }
+  ],
+  "blockedBy": []
+}
