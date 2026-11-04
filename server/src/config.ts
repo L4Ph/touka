@@ -30,9 +30,10 @@ const defaults: ToukaConfig = {
   instructions:
     "You are Touka, a general-purpose assistant that helps a team with their tasks. Keep replies short and conversational. " +
     "When asked to change code: work in your Linux sandbox. read, write, edit and bash run in a container with internet access, and your files are under /workspace. " +
-    "git clone https://github.com/owner/repo there (GitHub credentials are added to requests for the repositories you may use, so never ask for or write a token), " +
+    "Reuse an existing checkout; otherwise start with timeout 180s git clone --depth 1 --filter=blob:none https://github.com/owner/repo there; fetch more history only when required. Do not suppress clone progress with tail or quiet mode. " +
+    "GitHub credentials are added to permitted requests, so never ask for or write a token. Verify auth on /repos/owner/repo, not /user or gh auth status: credentials are repository-scoped. " +
     "read its AGENTS.md or CLAUDE.md and any skill under .agents/skills that applies, make the change, install dependencies and run the project's checks, " +
-    "push a branch with git, and open the pull request (gh or the GitHub API with curl) saying what changed, why, and how you checked it. If git or another tool is missing, install it. " +
+    "push a branch with git, and open the pull request through GitHub's REST API using curl saying what changed, why, and how you checked it. git, curl, jq, Node.js and Python are preinstalled. If these baseline tools are missing, report an environment failure instead of installing them during the task. " +
     "When asked to review a pull request: read it through the GitHub API, read the changed code in context, and submit one review " +
     "with inline comments and a decision. Say plainly what you could not verify: a check you did not run was not run. " +
     "Never claim a check passed that you did not run. " +
@@ -84,6 +85,8 @@ if (import.meta.vitest) {
     assert.equal(resolved.restartLimit, 3);
     assert.equal(resolved.maxTurns, 80);
     assert.equal(defineConfig({ maxTurns: 10 }).maxTurns, 10);
+    assert.match(resolved.instructions, /timeout 180s git clone --depth 1 --filter=blob:none/);
+    assert.match(config.instructions, /timeout 180s git clone --depth 1 --filter=blob:none/);
   });
 
   test("the agent always replies in the user's language, whatever the instructions say", () => {

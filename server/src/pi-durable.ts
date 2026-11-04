@@ -20,9 +20,10 @@ import { serial } from "./serial";
 import { progressText } from "./progress";
 import type { Env } from "./env";
 import type { Principal } from "@remote-agent/agent-contract";
-import { executionGrant } from "./execution";
+import { executionGrant, assertGrantChange } from "./execution";
 import { installTools } from "./tools";
 import { sandbox } from "./sandbox/env";
+import { checkpointToolResult } from "./sandbox/checkpoint";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { RemoteCodemodeSandbox } from "@earendil-works/pi-codemode/portable";
 import { createCodingTools } from "@earendil-works/pi-durable/tools";
@@ -59,6 +60,12 @@ export class PiDurable extends DurableObject<Env> {
       registry.install({
         name: "touka",
         sections: [{ key: "identity", tag: false, render: () => systemPrompt(config) }],
+        // Keep persistence on the existing identity extension, including explicitly selected agents.
+        hooks: [
+          hook(ToolTask, {
+            afterTool: (call, result) => checkpointToolResult(call.name, result, box.checkpoint),
+          }),
+        ],
       });
       if (config.beforeTool) {
         const beforeTool = config.beforeTool;
@@ -158,11 +165,12 @@ export class PiDurable extends DurableObject<Env> {
   ): Promise<SubmitReceipt | null> {
     const grant = executionGrant(sessionId, principal);
     this.execution ??= await this.ctx.storage.get("execution");
-    if (this.execution && JSON.stringify(this.execution) !== JSON.stringify(grant))
-      throw new Error("execution_grant_conflict");
-    if (!this.execution) {
-      // Never grant tools retroactively to an already queued legacy operation.
-      if ((await this.harness.pending()).length) throw new Error("execution_grant_conflict");
+    if (!this.execution || JSON.stringify(this.execution) !== JSON.stringify(grant)) {
+      assertGrantChange(
+        this.execution,
+        grant,
+        (await this.harness.session().busy()) || (await this.harness.pending()).length > 0,
+      );
       await this.ctx.storage.put("execution", grant);
       this.execution = grant;
     }

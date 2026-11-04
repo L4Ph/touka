@@ -1,7 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Duplex } from "./connection";
 import type { EgressProps } from "./policy";
-import { SANDBOX_IMAGE, TRUST_ENV } from "./image";
+import { SANDBOX_RUNTIME, startupOptions, TRUST_ENV } from "./image";
+import { serial } from "../serial";
+import packages from "../../sandbox-packages.txt?raw";
 
 /** The pi-env daemon the tools talk to, pinned by checksum and fetched once per container. */
 const DAEMON_VERSION = "1.5.0";
@@ -28,63 +30,99 @@ if(!ok())throw new Error('checksum mismatch')})().catch(e=>{console.error(e.mess
 
 /** Internal binding only: do not expose this DO's RPC through a public HTTP route. */
 export class SandboxContainer extends DurableObject {
+  private readonly exclusive = serial();
   /**
    * Opens the pi-env daemon in this session's container, starting the container if needed. `props`
    * says which GitHub repositories the container's own traffic may reach; the container itself
    * holds no credential.
    */
   async daemon(token: string, props: EgressProps): Promise<Duplex> {
-    const container = this.ctx.container;
-    if (!container) throw new Error("sandbox_unconfigured");
-    if (!container.running) {
-      // A destroyed container restarts from the last good snapshot.
-      const saved = await this.ctx.storage.get<{ image: string; snapshot: ContainerSnapshot }>(
-        "snapshot",
+    return this.exclusive(async () => {
+      const container = this.ctx.container;
+      if (!container) throw new Error("sandbox_unconfigured");
+      if (
+        container.running &&
+        (await container.inspect())?.labels["touka.runtime"] !== SANDBOX_RUNTIME
+      ) {
+        // Never destroy an old workspace unless its current filesystem was successfully saved.
+        await this.snapshot();
+        await container.destroy();
+      }
+      if (!container.running) {
+        const saved = await this.ctx.storage.get<{ snapshot: ContainerSnapshot }>("snapshot");
+        container.start(startupOptions(saved?.snapshot, container.images.tools));
+      }
+      // Intercepts last until the container stops, so they are registered again every time.
+      const egress = (
+        this.ctx.exports as unknown as Record<string, (init: { props: EgressProps }) => Fetcher>
+      ).GitHubEgress!({ props });
+      await container.interceptOutboundHttps("*", egress);
+      await container.interceptOutboundHttp("*", egress);
+      // Legacy snapshots keep their old image. Repair missing baseline tools once, after resizing.
+      const prepare = await container.exec(
+        [
+          "bash",
+          "-c",
+          'missing=0; for tool in git git-lfs gh curl jq python3 make g++ ps rg unzip zip ssh; do command -v "$tool" >/dev/null || missing=1; done; ' +
+            'if [ "$missing" = 1 ]; then export DEBIAN_FRONTEND=noninteractive; timeout 180 dpkg --configure -a && timeout 180 apt-get update -qq && timeout 180 apt-get install -y --no-install-recommends "$@"; fi',
+          "touka-bootstrap",
+          ...packages.trim().split(/\s+/),
+        ],
+        { env: { ...TRUST_ENV }, stdout: "ignore", stderr: "pipe" },
       );
-      const containerSnapshot = saved?.image === SANDBOX_IMAGE ? saved.snapshot : undefined;
-      container.start({
-        ...(containerSnapshot ? { containerSnapshot } : { image: SANDBOX_IMAGE }),
-        entrypoint: ["sleep", "infinity"],
-        enableInternet: true,
-        env: {},
+      const prepared = await prepare.output();
+      if (prepared.exitCode !== 0) {
+        console.error(
+          "sandbox_bootstrap_failed",
+          prepared.exitCode,
+          new TextDecoder()
+            .decode(prepared.stderr)
+            .slice(-2000)
+            .replace(/(https?:\/\/)[^\s/]+@/g, "$1[redacted]@"),
+        );
+        throw new Error("sandbox_bootstrap_failed");
+      }
+      // Also the readiness probe: it only succeeds once the container accepts commands.
+      const install = await container.exec(
+        ["node", "-e", installScript, DAEMON_PATH, JSON.stringify(DAEMON)],
+        { env: { ...TRUST_ENV }, stdout: "pipe", stderr: "pipe" },
+      );
+      if ((await install.exitCode) !== 0) throw new Error("sandbox_transport_error");
+      await (
+        await container.exec(["mkdir", "-p", "/workspace"])
+      ).exitCode;
+      const daemon = await container.exec([DAEMON_PATH, "serve", "--token", token], {
+        cwd: "/workspace",
+        env: { ...TRUST_ENV },
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "ignore",
       });
-    }
-    // Intercepts last until the container stops, so they are registered again every time.
-    const egress = (
-      this.ctx.exports as unknown as Record<string, (init: { props: EgressProps }) => Fetcher>
-    ).GitHubEgress!({ props });
-    await container.interceptOutboundHttps("*", egress);
-    await container.interceptOutboundHttp("*", egress);
-    // Also the readiness probe: it only succeeds once the container accepts commands.
-    const install = await container.exec(
-      ["node", "-e", installScript, DAEMON_PATH, JSON.stringify(DAEMON)],
-      { env: { ...TRUST_ENV }, stdout: "pipe", stderr: "pipe" },
-    );
-    if ((await install.exitCode) !== 0) throw new Error("sandbox_transport_error");
-    await (
-      await container.exec(["mkdir", "-p", "/workspace"])
-    ).exitCode;
-    const daemon = await container.exec([DAEMON_PATH, "serve", "--token", token], {
-      cwd: "/workspace",
-      env: { ...TRUST_ENV },
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "ignore",
+      // An extra best-effort save; tool completion checkpoints do not depend on daemon exit.
+      this.ctx.waitUntil(
+        daemon.exitCode
+          .then(() => this.exclusive(() => this.snapshot()))
+          .catch(() => console.error("sandbox_snapshot_failed")),
+      );
+      return { stdin: daemon.stdin!, stdout: daemon.stdout! };
     });
-    // The workspace outlives the container only through a snapshot, taken when the daemon ends.
-    this.ctx.waitUntil(daemon.exitCode.then(() => this.snapshot()).catch(() => {}));
-    return { stdin: daemon.stdin!, stdout: daemon.stdout! };
   }
 
-  /** Best-effort: a failed snapshot keeps the previous one. */
+  checkpoint(): Promise<void> {
+    return this.exclusive(() => this.snapshot());
+  }
+
   private async snapshot(): Promise<void> {
     const container = this.ctx.container;
-    if (!container?.running || !container.snapshotContainer) return;
-    try {
-      const snapshot = await container.snapshotContainer({ name: "workspace" });
-      await this.ctx.storage.put("snapshot", { image: SANDBOX_IMAGE, snapshot });
-    } catch {
-      // ponytail: silent; surface it if lost workspaces ever matter.
-    }
+    if (!container?.running || !container.snapshotContainer)
+      throw new Error("sandbox_snapshot_unavailable");
+    const snapshot = await container.snapshotContainer({ name: "workspace" });
+    // Retain the legacy reader's guard; the opaque snapshot, not this marker, owns the actual image.
+    await this.ctx.storage.put("snapshot", {
+      image: "cloudflare/debian-trixie",
+      snapshot,
+      savedAt: Date.now(),
+    });
+    console.info("sandbox_checkpoint_saved", { id: snapshot.id, size: snapshot.size });
   }
 }

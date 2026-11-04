@@ -24,26 +24,39 @@ export function permit({ principal, sessionId }: Pick<SandboxContext, "principal
  * Pi's own `read`, `write`, `edit` and `bash` run against this environment: the session's container,
  * reached through the pi-env daemon. The model cannot choose another session's container.
  */
-export function sandbox(context: SandboxContext): { env: () => ExecutionEnv; close: () => void } {
+export function sandbox(context: SandboxContext): {
+  env: () => ExecutionEnv;
+  close: () => void;
+  checkpoint: () => Promise<void>;
+} {
   let connection: ContainerConnection | undefined;
+  let policy: string | undefined;
+  const container = async () => {
+    const namespace = context.env.SANDBOX_CONTAINER;
+    if (!namespace) throw new Error("sandbox_unconfigured");
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(context.sessionId));
+    const name =
+      "sandbox-" +
+      Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
+    return namespace.getByName(name);
+  };
   const open = () => {
     permit(context);
     const namespace = context.env.SANDBOX_CONTAINER;
     if (!namespace) throw new Error("sandbox_unconfigured");
-    return (connection ??= new ContainerConnection(async (token) => {
-      // The container's own GitHub traffic is limited to what this principal may reach.
-      const resources = context.principal.resources.filter((resource) =>
-        resource.startsWith("github:"),
-      );
-      const hash = await crypto.subtle.digest(
-        "SHA-256",
-        new TextEncoder().encode(context.sessionId),
-      );
-      const name =
-        "sandbox-" +
-        Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
-      return namespace.getByName(name).daemon(token, { resources });
-    }));
+    const resources = context.principal.resources.filter((resource) =>
+      resource.startsWith("github:"),
+    );
+    const nextPolicy = JSON.stringify(resources);
+    if (policy !== nextPolicy) {
+      // An idle-session grant change must also replace the container's cached egress credentials.
+      connection?.close();
+      connection = undefined;
+      policy = nextPolicy;
+    }
+    return (connection ??= new ContainerConnection(async (token) =>
+      (await container()).daemon(token, { resources }),
+    ));
   };
   return {
     env: () =>
@@ -54,6 +67,10 @@ export function sandbox(context: SandboxContext): { env: () => ExecutionEnv; clo
         shellEnv: { ...TRUST_ENV },
       }),
     close: () => connection?.close(),
+    checkpoint: async () => {
+      permit(context);
+      await (await container()).checkpoint();
+    },
   };
 }
 

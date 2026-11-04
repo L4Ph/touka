@@ -45,8 +45,11 @@ export function decide(request: { method: string; url: string }, props: EgressPr
     if (match) {
       repo = `${match[1]}/${match[2]}`;
       rest = match[3] ?? "";
+      // Git checks push permission during GET discovery, before the receive-pack POST.
+      if (read && rest === "/info/refs" && url.searchParams.get("service") === "git-receive-pack")
+        access = "write";
       // Fetching is a POST too, but only receive-pack changes the repository.
-      if (request.method === "POST" && rest === "/git-upload-pack") access = "read";
+      else if (request.method === "POST" && rest === "/git-upload-pack") access = "read";
       else if (!read && rest !== "/git-receive-pack")
         return { kind: "deny", reason: "github_forbidden" };
       // A push may touch workflow files, which GitHub rejects without that permission on the token.
@@ -55,7 +58,10 @@ export function decide(request: { method: string; url: string }, props: EgressPr
   }
   const need = access === "ci" ? "read" : access === "workflow" ? "workflow" : access;
   if (repo && granted(props.resources, repo, need)) return { kind: "token", repo, access, scheme };
-  if (read || (request.method === "POST" && rest === "/git-upload-pack"))
+  if (
+    (read && access !== "write" && access !== "workflow") ||
+    (request.method === "POST" && rest === "/git-upload-pack")
+  )
     return { kind: "anonymous" };
   return { kind: "deny", reason: "github_forbidden" };
 }
@@ -132,6 +138,26 @@ if (import.meta.vitest) {
         { resources: ["github:o/r:write", "github:o/r:workflow"] },
       ),
     ).toMatchObject({ access: "workflow" });
+  });
+
+  test("push discovery needs write scope before Git sends the pack", () => {
+    const request = {
+      method: "GET",
+      url: "https://github.com/o/r.git/info/refs?service=git-receive-pack",
+    };
+    expect(decide(request, props)).toEqual({
+      kind: "token",
+      repo: "o/r",
+      access: "write",
+      scheme: "Basic",
+    });
+    expect(
+      decide(request, { resources: [...props.resources, "github:o/r:workflow"] }),
+    ).toMatchObject({ access: "workflow" });
+    expect(decide(request, { resources: ["github:o/r:read"] })).toEqual({
+      kind: "deny",
+      reason: "github_forbidden",
+    });
   });
 
   test("a clone of an ungranted repository goes out anonymously", () => {

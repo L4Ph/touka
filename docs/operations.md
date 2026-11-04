@@ -23,7 +23,7 @@ Durable Object lifecycle is declared with `exports.durableObject` instead of mig
 
 Set server-only `TEAM_AUTH` to a JSON array of `{id, token, sessions, resources}`. Tokens must contain at least 32 random characters. Missing or invalid configuration fails closed. Send `Authorization: Bearer <token>` to the management API and authenticated Webhook Trigger.
 
-Session access and outbound resource grants are separate. `GET /api/sessions` lists only existing conversations explicitly allowed by the caller's `sessions` array; add deterministic Trigger-created IDs there for machine access. There is no global session directory. Reading a conversation or changing its model does not expand its persisted Tool grants.
+Session access and outbound resource grants are separate. `GET /api/sessions` lists only existing conversations explicitly allowed by the caller's `sessions` array; add deterministic Trigger-created IDs there for machine access. There is no global session directory. Reading a conversation or changing its model does not expand its persisted Tool grants. An authenticated new submission may refresh a changed server policy only for the same session owner, with no active or queued work. The sandbox replaces its cached egress connection when GitHub grants change. Active/queued runs never gain permissions retroactively.
 
 ## Models
 
@@ -99,9 +99,23 @@ Pi Durable, pi-ai, pi-env, pi-codemode, pi-schema and Chord use 1.5.0 with Agent
 
 The old `/retry` endpoint and event-batch WebSocket protocol are removed; clients must use `/continue` and native conversation-view changes. The new upstream fixes include bounded interrupted model retries, turn limits, and explicit pi-env helper-spawn failures; none removes the need for progress delivery or safe tool replay policy.
 
+## Coding environment recovery
+
+Fresh containers use `server/sandbox.Dockerfile` and its shared package manifest, with explicit 1 vCPU,
+4 GiB memory and 16,000 MB disk. Existing snapshots keep their original image and receive a bounded
+baseline-tool repair after resizing. Use shallow, blob-filtered clones with a 180-second timeout;
+fetch additional history only when the task requires it.
+
+Before deployment, quiesce affected work and check native tool entries for `workspace_saved` diagnostics.
+Do not rely on daemon-exit callbacks or an assistant's success summary as proof of filesystem persistence.
+Verify recovery using a file written before restart and a read-only hash check afterward, plus an actual
+private repository operation. A sleep command alone does not verify a usable coding environment.
+The November 4 recovery found an absent old checkout despite an assistant claim that it was retained;
+that claim was withdrawn, and the checkout was recreated in a separate directory.
+
 ## Limits
 
 - Input deduplication is not exactly-once external delivery. Model calls or replies can repeat across crash boundaries; inspect external results before retrying ambiguous writes.
-- Operation expiry, history deletion, cursor-based event replay, and workspace backups are not implemented. WebSockets reconnect from a fresh snapshot. Sandbox workspaces are ephemeral.
+- Operation expiry, history deletion, cursor-based event replay, and permanent workspace backups are not implemented. WebSockets reconnect from a fresh snapshot. Container disks are ephemeral; workspace snapshots restore the latest saved checkpoint and expire 30 days after creation or last restore. In-flight changes after that checkpoint can be lost.
 - Production Slack, model execution, and sandbox progress/formatting evidence is recorded in `docs/devin-parity.md`. This does not establish live coverage for every connector, restart scenario, or vendor failure.
 - Dependency advisories remain tracked in `.r5/issues/remote-agent/07-dependency-advisories.json`. Do not expose development servers publicly or apply breaking `audit fix --force` downgrades.

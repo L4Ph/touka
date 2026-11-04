@@ -1,0 +1,15 @@
+bash
+ca-certificates
+curl
+git
+git-lfs
+gh
+jq
+openssh-client
+python3
+make
+g++
+procps
+ripgrep
+unzip
+zip

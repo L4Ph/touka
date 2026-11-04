@@ -24,11 +24,11 @@ const secretNames = [
   "GITHUB_BOT_LOGIN",
 ] as const;
 
-// JavaScript runs here, on the Cloudflare-managed `cloudflare/debian-trixie` image that the
-// Durable Object names when it starts the container, so no named image or Dockerfile is declared.
+// New coding sessions start with their tools already installed; existing snapshots retain their image.
 const sandbox = defineContainer({
   name: "touka-sandbox",
   schedulingPolicy: "durable-object",
+  images: { tools: { dockerfile: "./sandbox.Dockerfile" } },
 });
 
 export default defineConfig({

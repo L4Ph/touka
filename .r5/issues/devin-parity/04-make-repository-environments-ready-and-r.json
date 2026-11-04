@@ -2,7 +2,7 @@
   "title": "Make repository environments ready and recoverable",
   "category": "enhancement",
   "state": "ready-for-agent",
-  "what": "Replace repeated ad hoc setup with reproducible repository environment provisioning, readiness checks and recoverable workspaces. Diagnose the live apt and git timeouts before selecting a fix; retain additional OS and self-hosted environment requirements in the parity inventory.",
+  "what": "Production recovery now uses a prepared coding image, explicit 1 vCPU/4 GiB/16,000 MB resources, bounded legacy package repair, shallow clones, and native per-tool workspace checkpoints. A real copainter clone and read-only hash verification after restart passed; the initial old checkout was absent and its claimed preservation was withdrawn. Git push discovery scope was also corrected. Cold-session repository tests, timing regressions, additional recovery failures, and broader OS/environment support remain open. See docs/devin-parity.md.",
   "acceptance": [
     {
       "text": "A cold session reaches a verified clone and repository test run with required tools installed",
@@ -14,7 +14,7 @@
     },
     {
       "text": "A restart preserves or restores verified workspace state without replaying unsafe writes",
-      "done": false
+      "done": true
     },
     {
       "text": "Warm-start and cold-start timings are measured with a regression check",

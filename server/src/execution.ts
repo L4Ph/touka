@@ -25,6 +25,20 @@ export function executionGrant(sessionId: string, principal: Principal | undefin
   };
 }
 
+/** A server policy update can apply to a new run, never to an active/queued run or another owner. */
+export function assertGrantChange(
+  previous: { sessionId: string; principal: Principal } | undefined,
+  next: { sessionId: string; principal: Principal },
+  busy: boolean,
+): void {
+  if (
+    busy ||
+    (previous &&
+      (previous.sessionId !== next.sessionId || previous.principal.id !== next.principal.id))
+  )
+    throw new Error("execution_grant_conflict");
+}
+
 if (import.meta.vitest) {
   const { test } = import.meta.vitest;
   const assert: typeof nodeAssert = (await import("node:assert/strict")).default;
@@ -32,6 +46,21 @@ if (import.meta.vitest) {
   const token = "delivery-runtime-token-not-secret-00001";
   const sessions = ["tools"];
   const member = { id: "member", token, sessions, resources: ["github:team/project:read"] };
+
+  test("policy changes apply only between runs for the same session owner", () => {
+    const previous = executionGrant("tools", member);
+    const next = executionGrant("tools", {
+      ...member,
+      resources: [...member.resources, "github:team/project:workflow"],
+    });
+    assert.doesNotThrow(() => assertGrantChange(previous, next, false));
+    assert.throws(() => assertGrantChange(previous, next, true), /execution_grant_conflict/);
+    assert.throws(() => assertGrantChange(undefined, next, true), /execution_grant_conflict/);
+    assert.throws(
+      () => assertGrantChange(previous, executionGrant("tools", { ...member, id: "other" }), false),
+      /execution_grant_conflict/,
+    );
+  });
 
   test("execution grants reject missing session/resource authority and canonicalize only authenticated grants", () => {
     assert.throws(() => executionGrant("tools", undefined), /execution_forbidden/);
