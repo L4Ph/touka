@@ -40,16 +40,24 @@ function workspaces(env: SlackEnv): Workspace[] {
 export function slackPolicies(env: SlackEnv) {
   return workspaces(env).map(({ token: _token, ...policy }) => policy);
 }
+export const SLACK_MESSAGE_LIMIT = 12_000;
+
 export async function postMessage(
   env: SlackEnv,
   team: string,
   channel: string,
   thread: string,
   text: string,
+  progress?: { messageId?: string },
 ) {
   const workspace = workspaces(env).find((w) => w.id === team);
   if (!workspace) return { status: "failed" as const, code: "workspace_removed" };
-  if (!id(channel) || !/^\d{1,16}\.\d{1,6}$/.test(thread) || text.length > 3900)
+  if (
+    !id(channel) ||
+    !/^\d{1,16}\.\d{1,6}$/.test(thread) ||
+    text.length > SLACK_MESSAGE_LIMIT ||
+    (progress?.messageId !== undefined && !/^\d{1,16}\.\d{1,6}$/.test(progress.messageId))
+  )
     return { status: "failed" as const, code: "invalid_destination" };
   // Durable outbox, not the SDK's in-memory retries, owns Retry-After and recovery.
   const client = new SlackAPIClient(workspace.token, {
@@ -58,15 +66,27 @@ export async function postMessage(
     logLevel: "ERROR",
   });
   try {
-    const data = await client.chat.postMessage({
-      channel,
-      thread_ts: thread,
-      text,
-      mrkdwn: false,
-      unfurl_links: false,
-      unfurl_media: false,
-    });
-    if (data.ok) return { status: "delivered" as const };
+    const data = progress?.messageId
+      ? await client.chat.update({ channel, ts: progress.messageId, text, parse: "none" })
+      : await client.chat.postMessage({
+          channel,
+          thread_ts: thread,
+          text,
+          mrkdwn: false,
+          parse: "none",
+          link_names: false,
+          // Slack translates this official block into native rich text, code, lists, and tables.
+          // Top-level text remains a complete fallback for notifications and screen readers.
+          ...(progress ? {} : { blocks: [{ type: "markdown" as const, text }] }),
+          unfurl_links: false,
+          unfurl_media: false,
+        });
+    if (data.ok) {
+      if (!progress) return { status: "delivered" as const };
+      if (typeof data.ts === "string" && /^\d{1,16}\.\d{1,6}$/.test(data.ts))
+        return { status: "delivered" as const, messageId: data.ts };
+      return { status: "failed" as const, code: "missing_message_receipt" };
+    }
     return {
       status: [
         "invalid_auth",

@@ -13,7 +13,7 @@ In an existing Touka thread, any permitted human can send:
 
 Controls bypass the follow-up classifier but retain signature, workspace, human, and session checks. Replies use the durable delivery ledger. While captured operations still await cancellation, new work is declined so it cannot join the run being stopped; status remains available. The fence releases when those operations settle, or with the delivery record's 24-hour lifetime if infrastructure cannot complete cancellation. The delivery-status API exposes persisted state and vendor failures; a pending stop is not proof of cancellation.
 
-Automatic progress notifications and general natural-language side conversations remain open in `remote-agent/12` and `devin-parity/02`.
+Automatic progress uses one separate message per operation, updated at most once a minute. Progress delivery failures never consume final-answer attempts; final answers use a separate message so stale progress cannot overwrite them. General natural-language side conversations and restart/rate-limit verification remain open in `remote-agent/12` and `devin-parity/02`.
 
 ## Server-only configuration
 
@@ -49,7 +49,7 @@ Uses `slack-cloudflare-workers` (re-exporting `slack-edge`). Upstream `docs/simp
 
 Legacy form `ssl_check=1` plus `token` patterns are rejected even when embedded in JSON: the library otherwise auto-ACKs that path before signature checks and middleware. This intentionally refuses those rare text bodies rather than falsely acknowledging an unpersisted event; the ordinary signed JSON URL challenge remains supported. The regression was observed returning 200 before the guard.
 
-Ingress is bounded to 32 KiB before library parsing. Timestamp and signature syntax guards additionally reject future timestamps/malformed prefixes; the library performs the HMAC verification. Delivery uses fixed Slack endpoints with the shared abort deadline, 429 Retry-After, bounded retry/backoff and structured permanent failures. Results are truncated to 3900 characters and sent in the original thread, with markdown/unfurls disabled.
+Ingress is bounded to 32 KiB before library parsing. Timestamp and signature syntax guards additionally reject future timestamps/malformed prefixes; the library performs the HMAC verification. Delivery uses fixed Slack endpoints with the shared abort deadline, 429 Retry-After, bounded retry/backoff and structured permanent failures. Final answers use Slack's official `markdown` block, which Slack translates into native rich text, headings, code, lists, and tables. Complete top-level text provides the notification/screen-reader fallback; automatic link/mention expansion and unfurls are disabled. Explicit Slack mention tokens still have Slack's native meaning. The block limit is 12,000 characters; oversized answers include an explicit truncation notice. Progress remains plain text. GitHub and Discord retain their own Markdown dialects; Slack-specific formatting never enters the shared agent result.
 
 Status: `GET /triggers/slack/jobs/:team/:channel/:thread/:operation`, bearer `SLACK_ADMIN_TOKEN`. Returns sanitized shared outbox state, attempts, due and failure; never input, reply text or credentials. See `../../server/src/README.md` for shared limits, acceptance-time grant revocation limits and at-least-once duplicate risk.
 

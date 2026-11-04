@@ -37,9 +37,11 @@ export interface DeliveryContext {
   job: TriggerExecution;
   result: OperationStatus;
   signal: AbortSignal;
+  /** Opaque vendor receipt for updating a separate progress message. */
+  messageId?: string;
 }
 export type DeliveryResult =
-  | { status: "delivered" }
+  | { status: "delivered"; messageId?: string }
   | { status: "retry" | "failed"; code: string; retryAfterMs?: number };
 export type DeliveryHandler = (context: DeliveryContext) => Promise<DeliveryResult>;
 export interface TriggerDependencies {
@@ -71,8 +73,10 @@ export interface DeliveryStatus {
   attempts: number;
   due: number;
   failure: { code: string; attempts: number } | null;
+  progressFailure?: string | null;
 }
 export interface TriggerModule {
   create(dependencies: TriggerDependencies): Hono<TriggerAppEnv>;
   deliver?: DeliveryHandler;
+  progress?: DeliveryHandler;
 }

@@ -79,7 +79,8 @@ export class SessionStream implements DurableObjectCapability {
   }
 
   private async subscribe(ws: WebSocket): Promise<void> {
-    const stream = await this.harness.session().watch();
+    // Long-running sessions can exceed the frame budget with Pi's default 50-entry initial window.
+    const stream = await this.harness.session().watch({ min: 10, max: 20 });
     const sub: Subscription = { stream, sequence: 0, queuedBytes: 0, unacked: new Map() };
     this.subscriptions.set(ws, sub);
     this.send(ws, sub, { type: "snapshot", sequence: sub.sequence++, snapshot: stream.value });

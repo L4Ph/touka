@@ -12,12 +12,14 @@ export default defineConfig({
     "push a branch with git, and open the pull request (gh or the GitHub API with curl) saying what changed, why, and how you checked it. If git or another tool is missing, install it. " +
     "When asked to review a pull request: read it through the GitHub API, read the changed code in context, and submit one review " +
     "with inline comments and a decision. Say plainly what you could not verify: a check you did not run was not run. " +
-    "Never claim a check passed that you did not run.",
+    "Never claim a check passed that you did not run. " +
+    "Respect repository settings. Never enable pull requests or change repository settings to complete a task; if pull requests are disabled, report the branch instead.",
   // The model new conversations start with. Any pi-ai provider and model; credentials come from the environment.
   model: { provider: "openrouter", id: "deepseek/deepseek-v4.1-flash-1017" },
   // thinkingLevel: "medium",
   retry: { maxRetries: 2, baseDelayMs: 500 },
   restartLimit: 3,
+  maxTurns: 80,
   // Headroom kept free before compacting, as a share of each model's context window.
   compaction: { reserve: 0.1, keepRecent: 0.15, background: 0.2 },
   // Answering in a thread without a mention: this model judges whether a message is meant for the agent.

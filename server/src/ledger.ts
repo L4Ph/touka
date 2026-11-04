@@ -11,6 +11,10 @@ export interface Delivery extends TriggerExecution {
   result?: OperationStatus;
   /** Capture at acceptance so a retried stop never aborts work submitted later. */
   stopTargets?: string[];
+  progressDue?: number;
+  progressMessageId?: string;
+  progressFailures?: number;
+  progressFailure?: string;
   failure?: { code: string; attempts: number };
 }
 export const DELIVERY_LIMITS = {
@@ -18,6 +22,7 @@ export const DELIVERY_LIMITS = {
   attempts: 6,
   lifetimeMs: 86_400_000,
   timeoutMs: 20_000,
+  progressIntervalMs: 60_000,
   replyBytes: 8192,
 } as const;
 export const backoff = (attempts: number) =>

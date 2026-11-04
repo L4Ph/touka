@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import {
   slackPolicies,
   postMessage,
+  SLACK_MESSAGE_LIMIT,
   readThread,
   setReactions,
 } from "@remote-agent/connector-slack";
@@ -214,17 +215,34 @@ export function create({
   return app;
 }
 
+export const progress: DeliveryHandler = async ({ env, job, result, messageId }) =>
+  postMessage(
+    env,
+    String(job.reply.team),
+    String(job.reply.channel),
+    String(job.reply.thread),
+    `Progress (last observed ${new Date().toISOString()}): ${result.text ?? "Working."}`.slice(
+      0,
+      3900,
+    ),
+    { messageId },
+  );
+
 export const deliver: DeliveryHandler = async ({ env, job, result }) => {
   const text =
     result.status === "done"
-      ? (result.text || "Completed without a text response.").slice(0, 3900)
-      : `Agent operation ${result.status}. Check the session for recovery.`;
+      ? result.text || "Completed without a text response."
+      : result.reason === "turn_limit"
+        ? "Paused at the tool-round limit to prevent an endless run. Completed work is retained. Use !status to inspect or !continue to resume."
+        : `Agent operation ${result.status}. Check the session for recovery.`;
   const sent = await postMessage(
     env,
     String(job.reply.team),
     String(job.reply.channel),
     String(job.reply.thread),
-    text,
+    text.length > SLACK_MESSAGE_LIMIT
+      ? `${text.slice(0, SLACK_MESSAGE_LIMIT - 80).replace(/[\uD800-\uDBFF]$/, "")}\n\n[Response truncated at Slack's message limit.]`
+      : text,
   );
   // The 👀 set on acceptance becomes ✅ (or ❌) once the reply is out.
   if (sent.status === "delivered" && timestamp(job.reply.ts))
@@ -465,6 +483,78 @@ if (import.meta.vitest) {
     const { send, reactions } = setup({ addressed: false });
     await send(reply);
     assert.deepEqual(reactions, []);
+  });
+
+  test("Slack answers use its native Markdown block with a complete fallback, not raw mrkdwn", async () => {
+    const calls: URLSearchParams[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      assert.ok(input instanceof Request);
+      calls.push(new URLSearchParams(await input.text()));
+      return Response.json({ ok: true });
+    });
+    const markdown =
+      '# Heading\n\n**bold** *italic* ~~strike~~\n\n[Docs](https://example.com)\n\n- one\n  - two\n\n```ts\nconst x = "**literal**";\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |';
+    const context = {
+      env,
+      signal: new AbortController().signal,
+      job: {
+        trigger: "slack",
+        input: { sessionId: "s", operationId: "o", input: "x" },
+        principal: { id: "p", sessions: ["s"], resources: [] },
+        reply: { team: "T1", channel: "C1", thread: "10.000001" },
+      },
+      result: { sessionId: "s", operationId: "o", status: "done" as const, text: markdown },
+    };
+    await deliver(context);
+    assert.deepEqual(JSON.parse(calls[0].get("blocks")!), [{ type: "markdown", text: markdown }]);
+    assert.equal(calls[0].get("text"), markdown);
+    assert.equal(calls[0].get("parse"), "none");
+    assert.equal(calls[0].get("link_names"), "false");
+    await deliver({ ...context, result: { ...context.result, text: "x".repeat(12_001) } });
+    const limited = JSON.parse(calls[1].get("blocks")!)[0].text;
+    assert.ok(limited.length <= 12_000);
+    assert.match(limited, /Response truncated at Slack's message limit/);
+  });
+
+  test("progress edits its receipt while the final answer uses a separate message", async () => {
+    const calls: { method: string; body: URLSearchParams }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      assert.ok(input instanceof Request);
+      calls.push({
+        method: input.url.split("/api/")[1],
+        body: new URLSearchParams(await input.text()),
+      });
+      return Response.json({ ok: true, ts: "10.000010" });
+    });
+    const context = {
+      env,
+      signal: new AbortController().signal,
+      job: {
+        trigger: "slack",
+        input: { sessionId: "s", operationId: "o", input: "x" },
+        principal: { id: "p", sessions: ["s"], resources: [] },
+        reply: { team: "T1", channel: "C1", thread: "10.000001" },
+      },
+      result: {
+        sessionId: "s",
+        operationId: "o",
+        status: "running" as const,
+        text: "Running tools: bash.",
+      },
+    };
+    const sent = await progress(context);
+    assert.deepEqual(sent, { status: "delivered", messageId: "10.000010" });
+    await progress({ ...context, messageId: "10.000010" });
+    await deliver({
+      ...context,
+      result: { ...context.result, status: "done", text: "Verified result." },
+    });
+    assert.deepEqual(
+      calls.map((call) => call.method),
+      ["chat.postMessage", "chat.update", "chat.postMessage"],
+    );
+    assert.equal(calls[1].body.get("ts"), "10.000010");
+    assert.equal(calls[2].body.get("text"), "Verified result.");
   });
 
   test("delivering a reply swaps 👀 for ✅, or ❌ when the operation did not answer", async () => {

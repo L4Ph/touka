@@ -182,6 +182,7 @@ export class PiDurable extends DurableObject<Env> {
       throw new Error("session_stopping");
     // A retry must still succeed when the inbox is full.
     if (!existing && pending.length >= LIMITS.pending) return null;
+    await conversation.configure({ maxTurns: config.maxTurns }, BACKGROUND_CONTEXT);
     const receipt =
       action === "continue"
         ? await this.harness.continue({ operationId })
@@ -278,12 +279,13 @@ export class PiDurable extends DurableObject<Env> {
           attempts: job.attempts,
           due: job.due,
           failure: job.failure ?? null,
+          progressFailure: job.progressFailure ?? null,
         }
       : null;
   }
 
   /** Queue consumer step 1: lease the next reply attempt, or say how long to wait. */
-  async claimDelivery(operationId: string, polls: number) {
+  async claimDelivery(operationId: string, polls: number, progressTriggers: string[] = []) {
     return this.serialized(async () => {
       const jobs = ledger(this.ctx.storage);
       const job = await jobs.get(operationId);
@@ -300,9 +302,25 @@ export class PiDurable extends DurableObject<Env> {
         return { action: "abort", targets: job.stopTargets ?? [] } as const;
       }
       const result = job.result ?? (await this.operation(job.input.sessionId, operationId));
-      if (!result || !["done", "unanswered"].includes(result.status))
-        // ponytail: queue polling capped at 5s; a long-lived RPC on harness.wait() would avoid it.
+      if (!result || !["done", "unanswered"].includes(result.status)) {
+        if (progressTriggers.includes(job.trigger) && (job.progressDue ?? 0) <= now) {
+          job.progressDue = now + DELIVERY_LIMITS.progressIntervalMs;
+          await jobs.put(job);
+          const pi = await this.harness.pi();
+          const conversation = await this.harness.conversation("1");
+          const text =
+            result?.status === "queued"
+              ? "Queued; waiting for active work."
+              : progressText(await pi.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT));
+          return {
+            action: "progress",
+            job: jobs.execution(job),
+            messageId: job.progressMessageId,
+            result: { sessionId: job.input.sessionId, operationId, status: "running", text },
+          } as const;
+        }
         return { action: "wait", delayMs: Math.min(5000, 1000 * 2 ** polls) } as const;
+      }
       if (job.attempts >= DELIVERY_LIMITS.attempts) {
         await jobs.put(jobs.fail(job, "delivery_attempts_exhausted"));
         return { action: "stop" } as const;
@@ -313,6 +331,38 @@ export class PiDurable extends DurableObject<Env> {
       job.due = now + DELIVERY_LIMITS.timeoutMs + 1000;
       await jobs.put(job);
       return { action: "deliver", job: jobs.execution(job), result } as const;
+    });
+  }
+
+  async finishProgress(operationId: string, outcome: DeliveryResult) {
+    return this.serialized(async () => {
+      const jobs = ledger(this.ctx.storage);
+      const job = await jobs.get(operationId);
+      if (!job || jobs.terminal(job)) return { action: "stop" } as const;
+      if (outcome.status === "delivered" && outcome.messageId) {
+        job.progressMessageId = outcome.messageId;
+        job.progressFailures = 0;
+        delete job.progressFailure;
+      } else {
+        job.progressFailures = (job.progressFailures ?? 0) + 1;
+        job.progressFailure = jobs.code(
+          outcome.status === "delivered" ? "missing_message_receipt" : outcome.code,
+        );
+        if (outcome.status !== "retry" || job.progressFailures >= DELIVERY_LIMITS.attempts)
+          job.progressDue = Number.MAX_SAFE_INTEGER;
+        else
+          job.progressDue =
+            Date.now() +
+            Math.min(
+              3_600_000,
+              Math.max(
+                DELIVERY_LIMITS.progressIntervalMs,
+                Number.isFinite(outcome.retryAfterMs) ? outcome.retryAfterMs! : 0,
+              ),
+            );
+      }
+      await jobs.put(job);
+      return { action: "wait", delayMs: 1000 } as const;
     });
   }
 
@@ -444,6 +494,8 @@ export class PiDurable extends DurableObject<Env> {
       if (await ledger(this.ctx.storage).stopping(pending.map((item) => item.operationId)))
         return { error: "session_busy" } as const;
       try {
+        const conversation = await this.harness.conversation("1");
+        await conversation.configure({ maxTurns: config.maxTurns }, BACKGROUND_CONTEXT);
         return { receipt: await this.harness.continue({ operationId }) };
       } catch (error) {
         if (error instanceof ConversationBusy) return { error: "session_busy" } as const;

@@ -2,7 +2,7 @@
   "title": "Show live progress while the agent works",
   "category": "enhancement",
   "state": "ready-for-agent",
-  "what": "Slack and GitHub show nothing between acceptance and the final reply. Post one status message and edit it as the run goes (current tool, plan), without exceeding Slack and GitHub rate limits.",
+  "what": "Slack automatic progress is deployed and live-verified: one message per operation is updated at most once a minute; failures are bounded separately from final delivery. Final answers deliberately use a separate message so stale progress cannot overwrite them. GitHub progress and restart/rate-limit verification remain open. See docs/devin-parity.md for production evidence.",
   "acceptance": [
     {
       "text": "One status message per operation is created on acceptance and edited until the final reply replaces it",

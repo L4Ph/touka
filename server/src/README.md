@@ -70,6 +70,8 @@ the webhook request. Duplicate operation IDs with identical input/grant/reply re
 
 Trigger controls are transport-independent actions. Status reads `LiveDoc` through the safe `progress.ts` projection without creating a Pi submission. Continue/steer use native Pi submissions. Stop captures pending submission IDs and fences new input until cancellation completes (or the delivery lifetime expires); the Queue performs cancellation outside the acceptance gate, so a slow tool abort does not block status. A retried stop never reselects targets. Control replies are persisted independently of the model run.
 
+Triggers may export a `progress` handler. While the operation is pending, the Queue leases a safe live-state projection at most once a minute and persists the vendor message receipt. Subsequent progress edits reuse that receipt. A permanent failure or six consecutive transient failures disable progress without consuming the final-answer retry budget; `progressFailure` is exposed in delivery status. Progress and final replies use different messages, so late progress cannot overwrite an answer.
+
 The Queue consumer (`outbox.ts`) is a scheduler only: `claimDelivery` leases an
 attempt once the Pi operation is `done`/`unanswered` or a control result is ready, the trigger's `deliver`
 handler runs, and `finishDelivery` records the outcome. A message that must wait is

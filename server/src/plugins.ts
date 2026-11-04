@@ -17,10 +17,12 @@ export function mountTriggers(app: Hono<AppEnv>): void {
     app.route(`/triggers/${name}`, module.create(triggerDependencies));
   }
 }
-export function deliveryHandlers(): Record<string, DeliveryHandler> {
+export function deliveryHandlers(
+  kind: "deliver" | "progress" = "deliver",
+): Record<string, DeliveryHandler> {
   return Object.fromEntries(
     Object.entries(triggers)
-      .filter(([, module]) => module.deliver)
-      .map(([path, module]) => [triggerName(path), module.deliver!]),
+      .filter(([, module]) => module[kind])
+      .map(([path, module]) => [triggerName(path), module[kind]!]),
   );
 }

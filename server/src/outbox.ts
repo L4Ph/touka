@@ -11,24 +11,35 @@ export interface Wake {
   polls?: number;
 }
 const handlers = deliveryHandlers();
+const progressHandlers = deliveryHandlers("progress");
 // DO RPC typing erases JSON-shaped fields such as `reply`, so state the shape the PiDurable returns.
 type Claim =
   | { action: "stop" }
   | { action: "wait"; delayMs: number }
   | { action: "abort"; targets: string[] }
-  | { action: "deliver"; job: TriggerExecution; result: OperationStatus };
+  | {
+      action: "deliver" | "progress";
+      job: TriggerExecution;
+      result: OperationStatus;
+      messageId?: string;
+    };
 
 /** One lease/deliver/record cycle. Returns the delay before the next wake, or undefined when finished. */
 async function step(env: Env, { sessionId, operationId, polls = 0 }: Wake) {
   const session = env.PI_DURABLE.getByName(sessionId);
-  const claim = (await session.claimDelivery(operationId, polls)) as Claim;
+  const claim = (await session.claimDelivery(
+    operationId,
+    polls,
+    Object.keys(progressHandlers),
+  )) as Claim;
   if (claim.action === "abort") {
     // Abort outside the acceptance gate: a slow tool's cancellation must not block status requests.
     for (const target of claim.targets) await session.abort(target);
     await session.completeStop(operationId);
     return 0;
   }
-  if (claim.action !== "deliver") return claim.action === "wait" ? claim.delayMs : undefined;
+  if (claim.action === "stop" || claim.action === "wait")
+    return claim.action === "wait" ? claim.delayMs : undefined;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -40,11 +51,12 @@ async function step(env: Env, { sessionId, operationId, polls = 0 }: Wake) {
   let outcome: DeliveryResult;
   try {
     outcome = await Promise.race([
-      handlers[claim.job.trigger]({
+      (claim.action === "progress" ? progressHandlers : handlers)[claim.job.trigger]({
         env,
         job: claim.job,
         result: claim.result,
         signal: controller.signal,
+        messageId: claim.messageId,
       }),
       deadline,
     ]);
@@ -53,7 +65,10 @@ async function step(env: Env, { sessionId, operationId, polls = 0 }: Wake) {
   } finally {
     clearTimeout(timer);
   }
-  const next = await session.finishDelivery(operationId, outcome);
+  const next =
+    claim.action === "progress"
+      ? await session.finishProgress(operationId, outcome)
+      : await session.finishDelivery(operationId, outcome);
   return next.action === "wait" ? next.delayMs : undefined;
 }
 

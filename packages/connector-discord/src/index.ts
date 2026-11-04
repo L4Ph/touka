@@ -54,6 +54,28 @@ if (import.meta.vitest) {
     signal: AbortSignal;
   }) => editInteractionResponse(c.env, c.job.reply, c.result.text, c.signal);
 
+  test("Discord preserves its native Markdown and disables automatic mentions", async () => {
+    const content =
+      '**bold** *italic* ~~strike~~\n[Docs](https://example.com)\n```ts\nconst x = "**literal**";\n```\n@everyone';
+    let payload: unknown;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const body = init?.body;
+      assert.ok(typeof body === "string");
+      payload = JSON.parse(body);
+      return new Response(null, { status: 200 });
+    });
+    assert.deepEqual(
+      await editInteractionResponse(
+        { DISCORD_APPLICATION_ID: "111111111111111111" },
+        { application: "111111111111111111", token: "test-token", expires: Date.now() + 60_000 },
+        content,
+        new AbortController().signal,
+      ),
+      { status: "delivered" },
+    );
+    assert.deepEqual(payload, { content, allowed_mentions: { parse: [] } });
+  });
+
   test("expired tokens and rate limits crossing expiry terminate without fallback or secret disclosure", async (t) => {
     const now = 1800000000000;
     vi.spyOn(Date, "now").mockImplementation(() => now);

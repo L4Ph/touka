@@ -13,6 +13,8 @@ export interface ToukaConfig {
   retry: { maxRetries: number; baseDelayMs: number };
   /** How many consecutive task interruptions are allowed before an explicit failure. */
   restartLimit: number;
+  /** Tool rounds per run; continuation explicitly starts a new bounded run. */
+  maxTurns: number;
   /** Compaction headroom as a share of each model's context window. */
   compaction: { reserve: number; keepRecent: number; background: number };
   /**
@@ -33,10 +35,12 @@ const defaults: ToukaConfig = {
     "push a branch with git, and open the pull request (gh or the GitHub API with curl) saying what changed, why, and how you checked it. If git or another tool is missing, install it. " +
     "When asked to review a pull request: read it through the GitHub API, read the changed code in context, and submit one review " +
     "with inline comments and a decision. Say plainly what you could not verify: a check you did not run was not run. " +
-    "Never claim a check passed that you did not run.",
+    "Never claim a check passed that you did not run. " +
+    "Respect repository settings. Never enable pull requests or change repository settings to complete a task; if pull requests are disabled, report the branch instead.",
   model: { provider: "anthropic", id: "claude-sonnet-5-5" },
   retry: { maxRetries: 2, baseDelayMs: 500 },
   restartLimit: 3,
+  maxTurns: 80,
   compaction: { reserve: 0.1, keepRecent: 0.15, background: 0.2 },
   followUp: { model: { provider: "typesafe", id: "jev-latest" }, threshold: 0.6 },
 };
@@ -78,6 +82,8 @@ if (import.meta.vitest) {
     assert.deepEqual(resolved.retry, { maxRetries: 5, baseDelayMs: 500 });
     assert.deepEqual(resolved.compaction, { reserve: 0.2, keepRecent: 0.15, background: 0.2 });
     assert.equal(resolved.restartLimit, 3);
+    assert.equal(resolved.maxTurns, 80);
+    assert.equal(defineConfig({ maxTurns: 10 }).maxTurns, 10);
   });
 
   test("the agent always replies in the user's language, whatever the instructions say", () => {

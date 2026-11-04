@@ -17,7 +17,7 @@ vp run deploy                         # Deploy with the project-local cf CLI
 
 The account comes from `CLOUDFLARE_ACCOUNT_ID` in your shell (or `cf login`'s only account). `vp run deploy` uploads `server/.env.local` as the Worker's secrets when it exists (a Worker that does not exist yet cannot take secrets in advance, and `cf workers secrets bulk` needs an existing Worker), and deploys without it otherwise, so later deploys keep the secrets already stored. Every server secret must be declared in `server/cloudflare.config.ts`; undeclared names never reach the Worker, and every declared one is required at deploy, so declare only the integrations in use. The `deploy` scripts do not take extra flags: a root `vp run` script inserts a `--` that makes `cf` ignore every flag after it, so call `vp -C server exec cf deploy <flags>` for anything else.
 
-Durable Object lifecycle is declared with `exports.durableObject` instead of migration tags. Nothing has been deployed yet, so class and export names are free to change; once a Worker is deployed with declarative exports, it cannot return to the legacy migration-array flow.
+Durable Object lifecycle is declared with `exports.durableObject` instead of migration tags. The Worker is deployed: preserve class/export names and existing data. A Worker deployed with declarative exports cannot return to the legacy migration-array flow.
 
 ## Authentication and session access
 
@@ -85,11 +85,13 @@ The endpoint returns 202 after durable acceptance, without waiting for model com
 | `GET /api/sessions/:id/operations/:operationId` | Durable operation status/result                                  |
 | `GET /api/sessions/:id/events`                  | Read-only authenticated [WebSocket stream](docs/event-stream.md) |
 
+Runs have an 80-tool-round limit (`maxTurns` in `touka.config.ts`), applied to new submissions and continuations in existing sessions too. A limit ends the run explicitly and preserves its history; `!continue` starts another bounded run. This bounds tool rounds, not total wall-clock time.
+
 Operations expose `queued`, `running`, `done`, or `unanswered`. Pi 1.5 ends restart-limited tasks explicitly instead of parking them. After fixing a failure, authenticated `continue` resumes an idle transcript without inventing a new user message. Supply a new operation ID; repeating it returns the same receipt. Busy sessions return 409. A transcript with nothing to continue ends unanswered with `nothing_to_answer`. Model changes affect the next call, not an in-flight request. Registered tools enforce explicit grants and conservative replay safety; code work stops at PR creation, not merge or deployment.
 
 ## Repository PR configuration
 
-If pull-request API calls return 404 while the repository is visible and the token has admin/push access, inspect `gh api repos/L4Ph/touka --jq '{has_pull_requests,pull_request_creation_policy}'` before rotating credentials. Disabled pull requests return 404 even to administrators. This repository's PR feature is enabled for the single-branch review workflow.
+If pull-request API calls return 404 while the repository is visible and the token has admin/push access, inspect `gh api repos/L4Ph/touka --jq '{has_pull_requests,pull_request_creation_policy}'` before rotating credentials. Disabled pull requests return 404 even to administrators. This repository deliberately disables PRs. Leave that setting disabled and deliver through commits and requested deployments.
 
 ## Pi 1.5 upgrade
 
@@ -101,5 +103,5 @@ The old `/retry` endpoint and event-batch WebSocket protocol are removed; client
 
 - Input deduplication is not exactly-once external delivery. Model calls or replies can repeat across crash boundaries; inspect external results before retrying ambiguous writes.
 - Operation expiry, history deletion, cursor-based event replay, and workspace backups are not implemented. WebSockets reconnect from a fresh snapshot. Sandbox workspaces are ephemeral.
-- Real Slack/GitHub/Discord/MCP/LLM connectivity, Docker/Cloudflare Containers, and production deployment require operator setup and have not been verified here.
+- Production Slack, model execution, and sandbox progress/formatting evidence is recorded in `docs/devin-parity.md`. This does not establish live coverage for every connector, restart scenario, or vendor failure.
 - Dependency advisories remain tracked in `.r5/issues/remote-agent/07-dependency-advisories.json`. Do not expose development servers publicly or apply breaking `audit fix --force` downgrades.
