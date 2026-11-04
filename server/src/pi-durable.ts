@@ -1,7 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   AgentDoc,
+  LiveDoc,
   ConversationBusy,
+  ConversationIdle,
   createRegistry,
   defineExtension,
   Harness,
@@ -15,6 +17,7 @@ import { PiHarness } from "agents/harness/pi";
 import { Lifecycle } from "agents/lifecycle";
 import { SessionStream } from "./stream";
 import { serial } from "./serial";
+import { progressText } from "./progress";
 import type { Env } from "./env";
 import type { Principal } from "@remote-agent/agent-contract";
 import { executionGrant } from "./execution";
@@ -151,6 +154,7 @@ export class PiDurable extends DurableObject<Env> {
   private async enqueue(
     { sessionId, operationId, input }: SubmitInput,
     principal: Principal,
+    action?: "continue" | "steer",
   ): Promise<SubmitReceipt | null> {
     const grant = executionGrant(sessionId, principal);
     this.execution ??= await this.ctx.storage.get("execution");
@@ -169,32 +173,90 @@ export class PiDurable extends DurableObject<Env> {
       operationId,
       BACKGROUND_CONTEXT,
     );
+    const pending = await this.harness.pending();
+    // A stop cancels shared runs: prevent later inputs from joining before its captured targets settle.
+    if (
+      !existing &&
+      (await ledger(this.ctx.storage).stopping(pending.map((item) => item.operationId)))
+    )
+      throw new Error("session_stopping");
     // A retry must still succeed when the inbox is full.
-    if (!existing && (await this.harness.pending()).length >= LIMITS.pending) return null;
-    const receipt = await this.harness.submit(input, { operationId });
+    if (!existing && pending.length >= LIMITS.pending) return null;
+    const receipt =
+      action === "continue"
+        ? await this.harness.continue({ operationId })
+        : await this.harness.submit(input, {
+            operationId,
+            ...(action === "steer" ? ({ whenBusy: "steer", whenIdle: "reject" } as const) : {}),
+          });
     await this.ctx.storage.put("created", true);
     return { sessionId, operationId, accepted: receipt.accepted };
   }
 
   /** Trigger entry: submit to Pi and record the reply destination in one gate. */
-  async accept({ trigger, input, principal, reply }: TriggerExecution) {
+  async accept({ trigger, action, input, principal, reply }: TriggerExecution) {
     return this.serialized(async () => {
       const grant = executionGrant(input.sessionId, principal);
       const jobs = ledger(this.ctx.storage);
       const existing = await jobs.get(input.operationId);
       if (existing) {
         if (
-          JSON.stringify([existing.trigger, existing.input, existing.principal, existing.reply]) !==
-          JSON.stringify([trigger, input, grant.principal, reply])
+          JSON.stringify([
+            existing.trigger,
+            existing.action,
+            existing.input,
+            existing.principal,
+            existing.reply,
+          ]) !== JSON.stringify([trigger, action, input, grant.principal, reply])
         )
           throw new Error("delivery_conflict");
         return { accepted: false, operationId: input.operationId };
       }
       if ((await jobs.prune()) >= DELIVERY_LIMITS.jobs) throw new Error("delivery_queue_full");
-      if (!(await this.enqueue(input, principal))) throw new Error("delivery_queue_full");
+      let result: OperationStatus | undefined;
+      let stopTargets: string[] | undefined;
+      if (action === "stop") {
+        if (!(await this.exists())) throw new Error("session_not_found");
+        stopTargets = (await this.harness.pending()).map((item) => item.operationId);
+      } else if (action === "status") {
+        if (!(await this.exists())) throw new Error("session_not_found");
+        const pi = await this.harness.pi();
+        const conversation = await this.harness.conversation("1");
+        result = {
+          sessionId: input.sessionId,
+          operationId: input.operationId,
+          status: "done",
+          text: progressText(await pi.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT)),
+        };
+      } else {
+        try {
+          if (!(await this.enqueue(input, principal, action)))
+            throw new Error("delivery_queue_full");
+        } catch (error) {
+          const stopping = error instanceof Error && error.message === "session_stopping";
+          if (
+            !stopping &&
+            !(error instanceof ConversationBusy || error instanceof ConversationIdle)
+          )
+            throw error;
+          result = {
+            sessionId: input.sessionId,
+            operationId: input.operationId,
+            status: "done",
+            text: stopping
+              ? "A stop is in progress. Wait for its confirmation, then send your request again."
+              : error instanceof ConversationBusy
+                ? "Work is already running. Use !steer followed by an instruction to change direction."
+                : "No task is running to steer. Send a new request, or use !continue after a failed run.",
+          };
+        }
+      }
       const now = Date.now();
       await jobs.put({
         trigger,
+        ...(action ? { action } : {}),
+        ...(result ? { result } : {}),
+        ...(stopTargets ? { stopTargets } : {}),
         input,
         principal: grant.principal,
         reply,
@@ -232,7 +294,12 @@ export class PiDurable extends DurableObject<Env> {
         await jobs.put(jobs.fail(job, "delivery_expired"));
         return { action: "stop" } as const;
       }
-      const result = await this.operation(job.input.sessionId, operationId);
+      if (job.action === "stop" && !job.result) {
+        job.due = now + DELIVERY_LIMITS.timeoutMs;
+        await jobs.put(job);
+        return { action: "abort", targets: job.stopTargets ?? [] } as const;
+      }
+      const result = job.result ?? (await this.operation(job.input.sessionId, operationId));
       if (!result || !["done", "unanswered"].includes(result.status))
         // ponytail: queue polling capped at 5s; a long-lived RPC on harness.wait() would avoid it.
         return { action: "wait", delayMs: Math.min(5000, 1000 * 2 ** polls) } as const;
@@ -246,6 +313,24 @@ export class PiDurable extends DurableObject<Env> {
       job.due = now + DELIVERY_LIMITS.timeoutMs + 1000;
       await jobs.put(job);
       return { action: "deliver", job: jobs.execution(job), result } as const;
+    });
+  }
+
+  async completeStop(operationId: string) {
+    return this.serialized(async () => {
+      const jobs = ledger(this.ctx.storage);
+      const job = await jobs.get(operationId);
+      if (!job || job.action !== "stop" || job.result || jobs.terminal(job)) return;
+      job.result = {
+        sessionId: job.input.sessionId,
+        operationId,
+        status: "done",
+        text: job.stopTargets?.length
+          ? "The operations active when you requested the stop have stopped. Completed changes were not undone. Use !continue to resume."
+          : "No active operation needed stopping.",
+      };
+      job.due = Date.now();
+      await jobs.put(job);
     });
   }
 
@@ -275,6 +360,8 @@ export class PiDurable extends DurableObject<Env> {
   }
 
   async operation(sessionId: string, operationId: string): Promise<OperationStatus | null> {
+    const control = await ledger(this.ctx.storage).get(operationId);
+    if (control?.result) return control.result;
     const storage = await this.harness.storage();
     const conversation = await this.harness.conversation("1");
     const record = await storage.submissionByRequest(
@@ -350,14 +437,19 @@ export class PiDurable extends DurableObject<Env> {
     return this.harness.abort({ operationId });
   }
   async continueOperation(operationId: string) {
-    if (!validId(operationId)) return { error: "invalid_operation" } as const;
-    if (!(await this.exists())) return { error: "session_not_found" } as const;
-    try {
-      return { receipt: await this.harness.continue({ operationId }) };
-    } catch (error) {
-      if (error instanceof ConversationBusy) return { error: "session_busy" } as const;
-      throw error;
-    }
+    return this.serialized(async () => {
+      if (!validId(operationId)) return { error: "invalid_operation" } as const;
+      if (!(await this.exists())) return { error: "session_not_found" } as const;
+      const pending = await this.harness.pending();
+      if (await ledger(this.ctx.storage).stopping(pending.map((item) => item.operationId)))
+        return { error: "session_busy" } as const;
+      try {
+        return { receipt: await this.harness.continue({ operationId }) };
+      } catch (error) {
+        if (error instanceof ConversationBusy) return { error: "session_busy" } as const;
+        throw error;
+      }
+    });
   }
 
   async inspect() {

@@ -2,6 +2,19 @@
 
 Independent npm workspace package. `src/index.ts` exports `create` and `deliver`; server composition mounts `/triggers/slack` and registers the shared Queue-backed outbox. No server/core imports, separate proxy worker, service binding or Slack-specific job engine.
 
+## Thread controls
+
+In an existing Touka thread, any permitted human can send:
+
+- `!status`: read Pi's live-state projection without calling a model or waiting for the active tool. Includes tool names and retry/compaction phases, never raw reasoning, tool output, arguments, or provider errors.
+- `!stop`: durably capture pending operation IDs and cancel them through the Queue. Confirmation follows cancellation, not merely acceptance. Completed external changes are not undone.
+- `!continue`: submit Pi's native continuation after a failed/stopped run without adding a fake user message. Busy conversations receive an explanation instead.
+- `!steer <instruction>`: use Pi's native steering inbox for active work. Idle conversations receive an explanation; empty steering is ignored.
+
+Controls bypass the follow-up classifier but retain signature, workspace, human, and session checks. Replies use the durable delivery ledger. While captured operations still await cancellation, new work is declined so it cannot join the run being stopped; status remains available. The fence releases when those operations settle, or with the delivery record's 24-hour lifetime if infrastructure cannot complete cancellation. The delivery-status API exposes persisted state and vendor failures; a pending stop is not proof of cancellation.
+
+Automatic progress notifications and general natural-language side conversations remain open in `remote-agent/12` and `devin-parity/02`.
+
 ## Server-only configuration
 
 - `SLACK_SIGNING_SECRET`: app signing secret.
@@ -27,7 +40,7 @@ Without `TOUKA_URL` the placeholder `https://touka.example.invalid` is sent, whi
 Besides `app_mention`, the app subscribes to `message.channels` and `message.groups` and needs the `channels:history` and `groups:history` scopes (adding scopes means reinstalling the app). Slack delivers these over the same HTTP Request URL as every other event; Socket Mode is not needed.
 
 - A mention in a thread is answered as before, with the people's messages since the agent last replied added in front (the whole thread when it has not spoken yet). History is context, so an unreadable thread is treated as empty rather than refused.
-- A message in a thread **without** a mention is answered only when the agent already has a conversation for that thread, the sender is permitted by `actors` (including `"*"`), and a small classifier (`followUp` in `server/touka.config.ts`) judges the message to be meant for the agent. Anything else is acknowledged and ignored. A classifier failure counts as "not meant for the agent".
+- Except for the explicit controls above, a message in a thread **without** a mention is answered only when the agent already has a conversation for that thread, the sender is permitted by `actors` (including `"*"`), and a small classifier (`followUp` in `server/touka.config.ts`) judges the message to be meant for the agent. Anything else is acknowledged and ignored. A classifier failure counts as "not meant for the agent".
 - The mention itself also arrives as a message event; that copy is ignored so a mention is never handled twice.
 
 ## ACK contract
@@ -40,4 +53,4 @@ Ingress is bounded to 32 KiB before library parsing. Timestamp and signature syn
 
 Status: `GET /triggers/slack/jobs/:team/:channel/:thread/:operation`, bearer `SLACK_ADMIN_TOKEN`. Returns sanitized shared outbox state, attempts, due and failure; never input, reply text or credentials. See `../../server/src/README.md` for shared limits, acceptance-time grant revocation limits and at-least-once duplicate risk.
 
-In-source tests (`vp test trigger-slack`) cover real signatures, the thread follow-up decision, thread context, status emoji and the reply swap, with Slack and the classifier faked at the boundary. No live Slack/LLM evidence.
+In-source tests (`vp test trigger-slack`) cover real signatures, the thread follow-up decision, thread context, status emoji and the reply swap, with Slack and the classifier faked at the boundary. Local workerd verification exercised signed controls during a live model run, prompt-free status, cancellation, duplicate receipts, and the stopping fence with an invalid Slack token. This proves runtime behavior, not successful delivery to Slack or production rollout.

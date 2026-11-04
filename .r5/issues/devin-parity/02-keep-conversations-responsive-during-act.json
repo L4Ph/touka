@@ -2,7 +2,7 @@
   "title": "Keep conversations responsive during active execution",
   "category": "enhancement",
   "state": "ready-for-agent",
-  "what": "Allow Slack participants to ask read-only side questions, inspect status, steer work and explicitly stop or resume it while a long-running operation is active. Keep control requests independent of the active tool call, and use Pi Durable rather than a second execution loop.",
+  "what": "Explicit !status, !stop, !continue and !steer controls are implemented through native Pi state/inbox and durable delivery. Local workerd verifies status during active execution, stop completion, duplicate receipts, prompt-free controls, and rejection of steering while cancellation is pending. Production Slack delivery, gated long-tool/restart cases, natural-language side questions, and automatic progress remain incomplete; see docs/devin-parity.md.",
   "acceptance": [
     {
       "text": "A status or side question receives an answer before a gated long-running tool finishes",

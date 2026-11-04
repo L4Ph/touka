@@ -145,8 +145,22 @@ export function create({
       if (!input) return reply({ ignored: true });
       const thread = event.thread_ts ?? event.ts;
       const session = await sessionId(workspace.id, event.channel, thread);
-      let text = input;
-      if (event.thread_ts !== undefined) {
+      const action =
+        input === "!status"
+          ? "status"
+          : input === "!stop"
+            ? "stop"
+            : input === "!continue"
+              ? "continue"
+              : /^!steer(?:\s|$)/.test(input)
+                ? "steer"
+                : undefined;
+      const instruction = action === "steer" ? input.slice("!steer".length).trim() : input;
+      if (!instruction) return reply({ ignored: true, reason: "empty_instruction" });
+      if (action && (!exists || !(await exists(c.env, session))))
+        return reply({ ignored: true, reason: "session_not_found" });
+      let text = instruction;
+      if (!action && event.thread_ts !== undefined) {
         const history = await readThread(c.env, workspace.id, event.channel, event.thread_ts);
         if (!mention) {
           // Cheapest checks first: a conversation must exist, and history must be readable.
@@ -165,6 +179,7 @@ export function create({
       try {
         receipt = await execute(c.env, {
           trigger: "slack",
+          ...(action ? { action } : {}),
           input: { sessionId: session, operationId: body.event_id, input: text },
           principal: {
             id: workspace.id,
@@ -356,6 +371,36 @@ if (import.meta.vitest) {
       executed.map((request) => request.principal.resources),
       [[], []],
     );
+  });
+
+  test("status controls bypass conversation classification and enter durable delivery without ordinary task input", async () => {
+    const { send, executed, calls } = setup({ addressed: false });
+    assert.deepEqual((await send({ ...reply, text: "!status" })).body, {
+      eventId: "Ev1",
+      accepted: true,
+    });
+    assert.equal(executed.length, 1);
+    assert.equal(executed[0].action, "status");
+    assert.equal(calls.classified, 0);
+    assert.equal(calls.slack, 0);
+    assert.equal(executed[0].input.input, "!status");
+  });
+
+  test("stop, continue, and steering controls are explicit and never wait for the follow-up classifier", async () => {
+    const { send, executed, calls } = setup({ addressed: false });
+    for (const [i, text] of ["!stop", "!continue", "!steer only fix the tests"].entries())
+      assert.equal((await send({ ...reply, text }, `Ev${i}`)).status, 200);
+    assert.deepEqual(
+      executed.map((request) => request.action),
+      ["stop", "continue", "steer"],
+    );
+    assert.equal(executed[2].input.input, "only fix the tests");
+    assert.equal(calls.classified + calls.slack, 0);
+    assert.deepEqual((await send({ ...reply, text: "!steer" })).body, {
+      ignored: true,
+      reason: "empty_instruction",
+    });
+    assert.equal(executed.length, 3);
   });
 
   test("a thread message the classifier says is not for the agent is left alone", async () => {

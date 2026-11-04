@@ -13,6 +13,8 @@ export async function executeTrigger(env: Env, request: TriggerExecution) {
     !/^[a-z][a-z0-9-]{0,63}$/.test(request.trigger) ||
     !Object.hasOwn(deliveryHandlers(), request.trigger) ||
     !isSubmitInput(request.input) ||
+    (request.action !== undefined &&
+      !["status", "stop", "continue", "steer"].includes(request.action)) ||
     !request.reply ||
     typeof request.reply !== "object" ||
     Array.isArray(request.reply) ||

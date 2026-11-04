@@ -6,19 +6,19 @@
   "acceptance": [
     {
       "text": "The dependency graph and checksum-pinned daemon download resolve to 1.5.0",
-      "done": false
+      "done": true
     },
     {
       "text": "WebSockets emit bounded native views and continue submissions are idempotent",
-      "done": false
+      "done": true
     },
     {
       "text": "A real Pi 1.4 SQLite conversation is preserved and continued under 1.5",
-      "done": false
+      "done": true
     },
     {
       "text": "The full build tests and type checks pass",
-      "done": false
+      "done": true
     },
     {
       "text": "Quiesce or finish active production work, retain recovery evidence, and verify the production rollout",

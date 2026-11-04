@@ -15,12 +15,19 @@ const handlers = deliveryHandlers();
 type Claim =
   | { action: "stop" }
   | { action: "wait"; delayMs: number }
+  | { action: "abort"; targets: string[] }
   | { action: "deliver"; job: TriggerExecution; result: OperationStatus };
 
 /** One lease/deliver/record cycle. Returns the delay before the next wake, or undefined when finished. */
 async function step(env: Env, { sessionId, operationId, polls = 0 }: Wake) {
   const session = env.PI_DURABLE.getByName(sessionId);
   const claim = (await session.claimDelivery(operationId, polls)) as Claim;
+  if (claim.action === "abort") {
+    // Abort outside the acceptance gate: a slow tool's cancellation must not block status requests.
+    for (const target of claim.targets) await session.abort(target);
+    await session.completeStop(operationId);
+    return 0;
+  }
   if (claim.action !== "deliver") return claim.action === "wait" ? claim.delayMs : undefined;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;

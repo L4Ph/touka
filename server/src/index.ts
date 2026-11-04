@@ -14,7 +14,8 @@ const app = new Hono<AppEnv>();
 app.onError((error, c) => {
   if (["execution_forbidden", "execution_grant_conflict"].includes(error.message))
     return c.json({ error: { code: error.message } }, 403);
-  if (error.message === "delivery_conflict") return c.json({ error: { code: error.message } }, 409);
+  if (["delivery_conflict", "session_stopping"].includes(error.message))
+    return c.json({ error: { code: error.message } }, 409);
   if (error.message === "delivery_queue_full")
     return c.json({ error: { code: error.message } }, 429);
   if (error.message === "invalid_trigger_execution")

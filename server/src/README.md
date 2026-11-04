@@ -61,15 +61,17 @@ recovery text chosen by the trigger; do not claim an unanswered operation succee
 ## Durable execution and outbox
 
 `PiDurable.accept()` is the durable accept. In one gate it validates the grant, submits
-to Pi (deduped by operation ID) and stores the reply record, then returns
+to Pi (deduped by operation ID), or records a control result/stop target set, and stores the reply record, then returns
 `{accepted, operationId}`. `executeTrigger` then sends a wake-up message
 `{sessionId, operationId}` to the `DELIVERY` Queue, even for a duplicate, so a crash
 between accept and send heals on the vendor's retry. Model work runs in Pi, not in
 the webhook request. Duplicate operation IDs with identical input/grant/reply return
 `accepted:false`; conflicting content returns `delivery_conflict`.
 
+Trigger controls are transport-independent actions. Status reads `LiveDoc` through the safe `progress.ts` projection without creating a Pi submission. Continue/steer use native Pi submissions. Stop captures pending submission IDs and fences new input until cancellation completes (or the delivery lifetime expires); the Queue performs cancellation outside the acceptance gate, so a slow tool abort does not block status. A retried stop never reselects targets. Control replies are persisted independently of the model run.
+
 The Queue consumer (`outbox.ts`) is a scheduler only: `claimDelivery` leases an
-attempt once the Pi operation is `done`/`unanswered`, the trigger's `deliver`
+attempt once the Pi operation is `done`/`unanswered` or a control result is ready, the trigger's `deliver`
 handler runs, and `finishDelivery` records the outcome. A message that must wait is
 re-sent with a delay and the old one acked, so retries do not consume the Queue's own
 `max_retries`. If the consumer fails, the message is retried by the platform.

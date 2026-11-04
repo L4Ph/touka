@@ -8,6 +8,8 @@ import type {
 
 export interface TriggerExecution {
   trigger: string;
+  /** A control operation is delivered independently of the active model run. */
+  action?: "status" | "stop" | "continue" | "steer";
   input: SubmitInput;
   principal: Principal;
   /** Trigger-owned destination/audit data. Never passed to Pi. */
