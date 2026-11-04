@@ -6,11 +6,11 @@ import type { AppEnv, Env } from "./env";
 import { STREAM_LIMITS, type SessionStreamFrame } from "./stream-protocol";
 import { encodeStreamFrame } from "./stream-frame";
 
-type Events = Awaited<ReturnType<ReturnType<PiHarness["session"]>["events"]>>;
+type ViewWatch = Awaited<ReturnType<ReturnType<PiHarness["session"]>["watch"]>>;
 
 /** One socket's live subscription. It is memory only: a hibernated socket gets a new one on wake. */
 interface Subscription {
-  stream: Events;
+  stream: ViewWatch;
   sequence: number;
   queuedBytes: number;
   unacked: Map<number, number>;
@@ -79,13 +79,14 @@ export class SessionStream implements DurableObjectCapability {
   }
 
   private async subscribe(ws: WebSocket): Promise<void> {
-    const stream = await this.harness.session().events();
+    const stream = await this.harness.session().watch();
     const sub: Subscription = { stream, sequence: 0, queuedBytes: 0, unacked: new Map() };
     this.subscriptions.set(ws, sub);
-    this.send(ws, sub, { type: "snapshot", sequence: sub.sequence++, snapshot: stream.snapshot });
+    this.send(ws, sub, { type: "snapshot", sequence: sub.sequence++, snapshot: stream.value });
     if (this.subscriptions.get(ws) === sub)
-      stream.start(async (events) => {
-        this.send(ws, sub, { type: "events", sequence: sub.sequence++, events });
+      stream.start(async (call) => {
+        if (call.kind === "value")
+          this.send(ws, sub, { type: "changes", sequence: sub.sequence++, ops: call.ops });
       });
     void stream.closed.then(() => {
       if (this.subscriptions.get(ws) === sub) this.close(ws, 1011, "Stream ended; reconnect");

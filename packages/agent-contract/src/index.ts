@@ -13,7 +13,7 @@ export interface SubmitReceipt {
 export interface OperationStatus {
   sessionId: string;
   operationId: string;
-  status: "queued" | "running" | "done" | "unanswered" | "parked";
+  status: "queued" | "running" | "done" | "unanswered";
   text?: string;
   reason?: string;
 }

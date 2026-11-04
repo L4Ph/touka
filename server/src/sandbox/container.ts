@@ -4,15 +4,16 @@ import type { EgressProps } from "./policy";
 import { SANDBOX_IMAGE, TRUST_ENV } from "./image";
 
 /** The pi-env daemon the tools talk to, pinned by checksum and fetched once per container. */
-const DAEMON_VERSION = "1.4.0";
-const DAEMON_PATH = "/tmp/touka/pi-env";
+const DAEMON_VERSION = "1.5.0";
+// A versioned path avoids overwriting an executable still serving an older Worker instance.
+const DAEMON_PATH = `/tmp/touka/pi-env-${DAEMON_VERSION}`;
 const DAEMON = {
   x64: {
-    sha256: "46dde0e25b5cf1a327a10ddcb25f746f85b783492f5b225dfaa1a0d84cf5b56a",
+    sha256: "55419f4fa1e7059f52540a2035ca68e90cc2c3ac49b637a7134c0200c2ab3381",
     url: `https://unpkg.com/@earendil-works/pi-env@${DAEMON_VERSION}/bin/pi-env-linux-x64/pi-env`,
   },
   arm64: {
-    sha256: "2a98a5576aed5f24b1b218e3025dcf6a2ea005ecbd8115aef63e443e6e8bffb8",
+    sha256: "e967fe64bd3f765f5e5ce9d3b83bfebcda24b5e929b82d93491b0803048d0ad5",
     url: `https://unpkg.com/@earendil-works/pi-env@${DAEMON_VERSION}/bin/pi-env-linux-arm64/pi-env`,
   },
 } as const;

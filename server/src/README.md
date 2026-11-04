@@ -55,8 +55,8 @@ credentials, prompts or exception text. Convert vendor 429 Retry-After (seconds
 or HTTP-date) to milliseconds. Treat 429/5xx/temporary network errors as retry;
 invalid credentials/permissions/destination are permanent unless explicitly
 recoverable. Truncate/chunk model results to vendor limits inside your handler.
-`done`, `unanswered`, `parked` results are delivered, including safe failure or
-recovery text chosen by the trigger; do not claim a parked operation succeeded.
+`done` and `unanswered` results are delivered, including safe failure or
+recovery text chosen by the trigger; do not claim an unanswered operation succeeded.
 
 ## Durable execution and outbox
 
@@ -69,7 +69,7 @@ the webhook request. Duplicate operation IDs with identical input/grant/reply re
 `accepted:false`; conflicting content returns `delivery_conflict`.
 
 The Queue consumer (`outbox.ts`) is a scheduler only: `claimDelivery` leases an
-attempt once the Pi operation is `done`/`unanswered`/`parked`, the trigger's `deliver`
+attempt once the Pi operation is `done`/`unanswered`, the trigger's `deliver`
 handler runs, and `finishDelivery` records the outcome. A message that must wait is
 re-sent with a delay and the old one acked, so retries do not consume the Queue's own
 `max_retries`. If the consumer fails, the message is retried by the platform.

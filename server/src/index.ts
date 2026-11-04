@@ -106,9 +106,20 @@ app
       aborted: await c.env.PI_DURABLE.getByName(c.req.param("sessionId")).abort(body.operationId),
     });
   })
-  .post("/api/sessions/:sessionId/retry", async (c) =>
-    c.json({ retried: await c.env.PI_DURABLE.getByName(c.req.param("sessionId")).retry() }),
-  )
+  .post("/api/sessions/:sessionId/continue", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || Object.keys(body).length !== 1 || !validId(body.operationId))
+      return c.json({ error: { code: "invalid_operation" } }, 400);
+    const result = await c.env.PI_DURABLE.getByName(c.req.param("sessionId")).continueOperation(
+      body.operationId,
+    );
+    if (result.error)
+      return c.json(
+        { error: { code: result.error } },
+        result.error === "session_not_found" ? 404 : result.error === "session_busy" ? 409 : 400,
+      );
+    return c.json(result.receipt, 202);
+  })
   .get("/api/sessions/:sessionId/runtime", async (c) =>
     c.json(await c.env.PI_DURABLE.getByName(c.req.param("sessionId")).inspect()),
   )

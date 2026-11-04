@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   AgentDoc,
+  ConversationBusy,
   createRegistry,
   defineExtension,
   Harness,
@@ -232,7 +233,7 @@ export class PiDurable extends DurableObject<Env> {
         return { action: "stop" } as const;
       }
       const result = await this.operation(job.input.sessionId, operationId);
-      if (!result || !["done", "unanswered", "parked"].includes(result.status))
+      if (!result || !["done", "unanswered"].includes(result.status))
         // ponytail: queue polling capped at 5s; a long-lived RPC on harness.wait() would avoid it.
         return { action: "wait", delayMs: Math.min(5000, 1000 * 2 ** polls) } as const;
       if (job.attempts >= DELIVERY_LIMITS.attempts) {
@@ -348,8 +349,15 @@ export class PiDurable extends DurableObject<Env> {
   async abort(operationId?: string) {
     return this.harness.abort({ operationId });
   }
-  async retry() {
-    return this.harness.retry();
+  async continueOperation(operationId: string) {
+    if (!validId(operationId)) return { error: "invalid_operation" } as const;
+    if (!(await this.exists())) return { error: "session_not_found" } as const;
+    try {
+      return { receipt: await this.harness.continue({ operationId }) };
+    } catch (error) {
+      if (error instanceof ConversationBusy) return { error: "session_busy" } as const;
+      throw error;
+    }
   }
 
   async inspect() {

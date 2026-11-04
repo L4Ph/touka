@@ -11,7 +11,7 @@ export interface ToukaConfig {
   thinkingLevel?: ModelThinkingLevel;
   /** Model request retries. */
   retry: { maxRetries: number; baseDelayMs: number };
-  /** How many times a crashed run is restarted before it is parked. */
+  /** How many consecutive task interruptions are allowed before an explicit failure. */
   restartLimit: number;
   /** Compaction headroom as a share of each model's context window. */
   compaction: { reserve: number; keepRecent: number; background: number };

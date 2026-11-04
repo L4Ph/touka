@@ -7,7 +7,7 @@
     "postinstall": "test -e node_modules/@cloudflare/vite-plugin/package.json || (mkdir -p node_modules/@cloudflare && ln -s ../../../../node_modules/@cloudflare/vite-plugin node_modules/@cloudflare/vite-plugin)"
   },
   "dependencies": {
-    "@earendil-works/pi-codemode": "~1.4.0"
+    "@earendil-works/pi-codemode": "~1.5.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "2.0.0-beta.v.8",

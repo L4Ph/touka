@@ -8,7 +8,7 @@ A general-purpose headless remote agent using Pi Durable, pi-ai, and the Cloudfl
 - **Connector**: manages external authentication, reads/writes, and resource authority for GitHub, Slack, Discord, and MCP, independently of the initiating Trigger.
 - **Trigger**: starts work from GitHub/Slack mentions, Discord HTTP Interactions, or authenticated Webhooks. It owns signatures, actor/resource policy, conversation mapping, durable ACK, and reply outboxes, not implicit write authority.
 - **Tool**: exposes Connector and other operations to Pi under server-validated grants, time/size limits, and side-effect-aware replay rules.
-- **Management API**: Hono routes provide bearer-authenticated session listing/creation, history, stop/retry, model controls, operation status, and WebSocket events. Session listing uses the caller's explicit allowlist, not a global index.
+- **Management API**: Hono routes provide bearer-authenticated session listing/creation, history, stop/continue, model controls, operation status, and WebSocket conversation views. Session listing uses the caller's explicit allowlist, not a global index.
 - **Models**: register built-in and arbitrary operator-defined pi-ai providers/models. Gateway is optional. Clients can select registered models, not register credentials or arbitrary endpoints.
 - **MCP**: discover/call operator-configured Streamable HTTP tools using public access or configured headers and tool-level grants. Interactive OAuth, stdio, legacy SSE, resources, and prompts are out of scope.
 

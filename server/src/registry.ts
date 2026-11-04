@@ -18,14 +18,14 @@ export function installExtension(registry: Registry, extension: Extension): void
 if (import.meta.vitest) {
   const { test } = import.meta.vitest;
   const assert: typeof nodeAssert = (await import("node:assert/strict")).default;
-  const { Type } = await import("@earendil-works/pi-ai");
+  const { obj } = await import("@earendil-works/pi-schema");
   const { createRegistry } = await import("@earendil-works/pi-durable");
 
   function tool(name: string): ToolRegistration {
     return {
       name,
       description: "Test registration only",
-      parameters: Type.Object({}),
+      parameters: obj({}),
       replay: "safe",
       execute: async () => {
         throw new Error("Registration test must not execute a tool");

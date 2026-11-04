@@ -1,4 +1,4 @@
-import type { AgentEvent, SnapshotEvent } from "@earendil-works/pi-durable";
+import type { ConversationView, WatchCall } from "@earendil-works/pi-durable";
 
 export const STREAM_LIMITS = {
   connections: 8,
@@ -8,5 +8,9 @@ export const STREAM_LIMITS = {
   unackedBytes: 1_048_576,
 } as const;
 export type SessionStreamFrame =
-  | { type: "snapshot"; sequence: number; snapshot: SnapshotEvent }
-  | { type: "events"; sequence: number; events: readonly AgentEvent[] };
+  | { type: "snapshot"; sequence: number; snapshot: ConversationView }
+  | {
+      type: "changes";
+      sequence: number;
+      ops: Extract<WatchCall<ConversationView>, { kind: "value" }>["ops"];
+    };

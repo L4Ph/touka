@@ -11,11 +11,12 @@
   },
   "dependencies": {
     "@cloudflare/codemode": "^0.5.6",
-    "@earendil-works/chord": "~1.4.0",
-    "@earendil-works/pi-ai": "~1.4.0",
-    "@earendil-works/pi-codemode": "^1.4.0",
-    "@earendil-works/pi-durable": "~1.4.0",
-    "@earendil-works/pi-env": "^1.4.0",
+    "@earendil-works/chord": "~1.5.0",
+    "@earendil-works/pi-ai": "~1.5.0",
+    "@earendil-works/pi-codemode": "~1.5.0",
+    "@earendil-works/pi-durable": "~1.5.0",
+    "@earendil-works/pi-env": "~1.5.0",
+    "@earendil-works/pi-schema": "~1.5.0",
     "@remote-agent/agent-contract": "*",
     "@remote-agent/connector-github": "*",
     "@remote-agent/connector-mcp": "*",
@@ -24,7 +25,7 @@
     "@remote-agent/trigger-github": "*",
     "@remote-agent/trigger-slack": "*",
     "@remote-agent/trigger-webhook": "*",
-    "agents": "^0.32.0",
+    "agents": "^0.33.0",
     "hono": "^4.13.14"
   },
   "devDependencies": {
